@@ -1,14 +1,30 @@
+# data
 numpy
+pandas
 torch
-tensorboard
-tqdm
+
+# vizu
 matplotlib
 seaborn
-pandas
+
+# multiprocess
+# scipy
+# scikit-learn
+
+# tooling
+tqdm
+ipykernel
+tyro==0.9.2
+tensorboard
+ray==2.38.0
+
+# RL
+mujoco==3.3.0
+gymnasium[classic-control, mujoco, other]==1.1.1
+dm-control==1.0.28
+shimmy[gym-v26, dm-control]
+
+# LLMs
 transformers
 accelerate
-multiprocess
-scipy
-scikit-learn
-ipykernel
-tyro
+openai
