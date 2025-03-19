@@ -1,0 +1,14 @@
+numpy
+torch
+tensorboard
+tqdm
+matplotlib
+seaborn
+pandas
+transformers
+accelerate
+multiprocess
+scipy
+scikit-learn
+ipykernel
+tyro
