@@ -9,6 +9,7 @@
 *.egg-info
 PKG-INFO
 
+videos/
 build/
 logs/
 results/
@@ -19,3 +20,6 @@ notebooks/internal
 .ruff_cache/
 
 __pycache__
+
+*.lock
+uv.lock
