@@ -46,7 +46,7 @@ ENV_SPECS = {
         "action_desc": "Actuator activations for each muscle/motor in the humanoid",
         "task": "Move forward while maintaining balance and minimizing energy usage",
         "reward": "Forward velocity minus energy expenditure and costs for "
-            "falling/imbalance",
+        "falling/imbalance",
         "frequency": "50 Hz",
     },
 }
