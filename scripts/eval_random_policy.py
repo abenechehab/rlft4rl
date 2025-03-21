@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Dict, Any
 from tqdm import tqdm
 
-from rlft4rl.utils import setup_logger, make_env
+from rlft4rl.utils import setup_logger, make_env, set_seed_everywhere
 
 
 @dataclass
@@ -24,8 +24,6 @@ class Args:
 
 def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
     """Evaluate a random policy in the given environment."""
-    # Set random seed
-    np.random.seed(args.seed)
 
     # Create directory for videos if needed
     if args.capture_video:
@@ -93,6 +91,8 @@ def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]
 
 
 def main(args: Args):
+    set_seed_everywhere(seed=args.seed)
+
     # Setup logger
     logger, _ = setup_logger(
         logger_name="RP",
