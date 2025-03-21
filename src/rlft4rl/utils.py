@@ -5,6 +5,10 @@ from datetime import datetime
 import shimmy  # noqa: F401 (needed for dm-control envs registration)
 import gymnasium as gym
 
+import random
+import numpy as np
+import torch
+
 
 def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> logging.Logger:
     # Clear existing handlers
@@ -60,3 +64,12 @@ def make_env(env_id, seed, idx, capture_video, run_name):
         return env
 
     return thunk
+
+
+def set_seed_everywhere(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
