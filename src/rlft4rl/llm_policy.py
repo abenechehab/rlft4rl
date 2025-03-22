@@ -95,7 +95,7 @@ class LLMPolicy:
     def act(self, obs):
         prompt = self.obs_to_prompt(obs)
 
-        def generate_response(app_act_dim: str=""):
+        def generate_response(app_act_dim: str = ""):
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -136,7 +136,7 @@ class LLMPolicy:
         while True:
             raw_response, filtered_response = generate_response(app_act_dim=app_act_dim)
             if len(filtered_response) == 6:
-                self.n_try_gen.append(count+1)
+                self.n_try_gen.append(count + 1)
                 break
             else:
                 app_act_dim = ", ".join(filtered_response) + ", "
