@@ -29,6 +29,7 @@ class Args:
     api_url: str = "http://10.227.91.60:4000/v1"  # Playground For Europe, or localhost
     api_key: str = "sk-1234"  # API key
     freq_log_action: int = 250  # Frequency to log action
+    n_examples: int = 3  # Number of examples for LLM policy system prompt
 
 
 def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
@@ -57,6 +58,11 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
     episode_returns = []
     episode_lengths = []
 
+    # Generate n examples for the LLM policy system prompt
+    examples = {}
+    for i in range(1, args.n_examples + 1):
+        examples[i] = {"obs": env.reset()[0], "action": env.action_space.sample()}
+
     # instantiate llm_policy
     llm_policy = LLMPolicy(
         api_url=args.api_url,
@@ -67,6 +73,7 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
         logit_bias=args.logit_bias,
         good_tokens=[] if not args.good_tokens else args.good_tokens.split(","),
         env_name=args.env_id,
+        examples=examples,
     )
 
     # Log the system prompt from LLM policy
@@ -86,8 +93,13 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
             # LLM action
             action = llm_policy.act(obs)
             if step_count % args.freq_log_action == 0:
-                logger.info(f"[Ep {ep + 1}, Step {step_count}] obs: {obs}")
-                logger.info(f"[Ep {ep + 1}, Step {step_count}] action: {action}")
+                logger.info(
+                    f"[Ep {ep + 1}, Step {step_count}] obs: {[f'{e:.4f}' for e in obs]}"
+                )
+                logger.info(
+                    f"[Ep {ep + 1}, Step {step_count}] "
+                    f"action: {[f'{e:.4f}' for e in action]}"
+                )
 
             # Step environment
             obs, _, terminated, truncated, _ = env.step(action)
@@ -127,6 +139,9 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
     }
 
     env.close()
+
+    llm_policy.log(logger=logger)
+
     return results
 
 
