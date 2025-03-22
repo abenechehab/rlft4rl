@@ -27,7 +27,8 @@ class Args:
     logit_bias: float = 0.0  # Logit bias
     good_tokens: Optional[str] = None  # Good tokens for LLM
     api_url: str = "http://10.227.91.60:4000/v1"  # Playground For Europe, or localhost
-    api_key: str = "sk-1234"
+    api_key: str = "sk-1234"  # API key
+    freq_log_action: int = 250  # Frequency to log action
 
 
 def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
@@ -38,8 +39,8 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
         os.makedirs("videos", exist_ok=True)
 
     # Create environment
-    run_name = f"{args.env_id}/llm-policy-{args.model.split('/')[0]}__{args.seed}__"
-    f"{int(time.time())}"
+    model_name = args.model.split("/final_model")[0].split("/")[0].split("--")[-1]
+    run_name = f"{args.env_id}/{model_name}/{int(time.time())}__seed-{args.seed}"
     env_fn = make_env(args.env_id, args.seed, 0, args.capture_video, run_name)
     env = env_fn()
 
@@ -84,6 +85,9 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
         while not done:
             # LLM action
             action = llm_policy.act(obs)
+            if step_count % args.freq_log_action == 0:
+                logger.info(f"[Ep {ep + 1}, Step {step_count}] obs: {obs}")
+                logger.info(f"[Ep {ep + 1}, Step {step_count}] action: {action}")
 
             # Step environment
             obs, _, terminated, truncated, _ = env.step(action)
@@ -97,8 +101,8 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
         pbar.close()
 
         if args.verbose:
-            logger.debug(
-                f"Episode {ep + 1}: "
+            logger.info(
+                f"[Ep {ep + 1}] "
                 f"return={env.return_queue[-1]}, length={env.length_queue[-1]}"
             )
 
@@ -131,12 +135,13 @@ def main(args: Args):
     set_seed_everywhere(seed=args.seed)
 
     # Setup logger
+    model_name = args.model.split("/final_model")[0].split("/")[0].split("--")[-1]
     logger, _ = setup_logger(
-        logger_name="LLMP",
+        logger_name="LLMPolicy",
         log_level=args.log_level,
         log_dir="logs",
         env_id=args.env_id,
-        exp_name=f"llm_policy_{args.model.split('/')[0]}",
+        exp_name=f"{model_name}",
     )
 
     # Run evaluation
