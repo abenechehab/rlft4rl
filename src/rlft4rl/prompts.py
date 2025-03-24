@@ -1,3 +1,85 @@
+from jinja2 import Template
+
+
+class PromptTemplate:
+    """A class to represent a template for generating prompts with variables
+    Attributes:
+        template (str): The template string with variables
+        input_variables (list): A list of the variable names in the template
+    """
+
+    def __init__(self, template, input_variables):
+        self.template = Template(template)
+        self.input_variables = input_variables
+
+    def format(self, **kwargs):
+        return self.template.render(**kwargs)
+
+
+INSTRUCTIONS = """
+Instructions:
+1. Based on the current observation provided between <observation> and
+    </observation>, determine the optimal action values.
+2. Write your answer after the <action> tag.
+3. Your response must ONLY contain the numeric action values separated by
+    commas.
+4. Do not include any explanations or additional text in your response.
+5. Format your response exactly as: "action_dimension_1, action_dimension_2,
+    action_dimension_3, ... </action>"
+6. Each action dimension value should respect the range in the action space.
+
+"""
+
+ENV_DESC = {
+    "HalfCheetah-v4": """
+The HalfCheetah is a 2-dimensional robot consisting of 9 body parts and 8 joints
+connecting them (including two paws).
+The cheetah’s head is fixed to its torso.
+The HalfCheetah is capable of performing various locomotion tasks by applying torque to
+6 joints over the front and back thighs (which connect to the torso), the shins
+(which connect to the thighs), and the feet (which connect to the shins).
+
+## Technical Specifications
+
+### Observation Space: Box(-inf, inf, (17,), float32)
+The environment observation is represented as a 1-dimensional NumPy array of shape
+`(17,)`, containing comprehensive information about the HalfCheetah's current
+configuration:
+
+#### 1. Position and Angle
+- `observation[0:2]`: Position (observation[0]) and angle (observation[1]) of head fixed
+ to its torso
+  - `observation[0]`: z-coordinate of the head in meters (0 when spawned).
+  - `observation[1]`: angle of the head in radians (0 when spawned).
+
+#### 2. Joint Angles
+- `observation[2:8]`: Angles of joint in back leg (observation[2:5]) and front
+leg(observation[5:8])
+  - `observation[2]`: angle of the back thigh in radians.
+  - `observation[3]`: angle of the back shin in radians.
+  - `observation[4]`: angle of the back foot in radians.
+  - `observation[5]`: angle of the front thigh in radians.
+  - `observation[6]`: angle of the front shin in radians.
+  - `observation[7]`: angle of the front foot in radians.
+
+### Action Space: Box(-1.0, 1.0, (6,), float32)
+The action space consists of a 1-dimensional NumPy array of shape `(6,)`,
+controlling the torques applied to each of the HalfCheetah's actuated joints.
+
+**Range**: All actions are bounded between [-1, 1]
+
+**Control mapping**:
+- `action[0]`: Torque applied on the back thigh rotor.
+- `action[1]`: Torque applied on the back shin rotor.
+- `action[2]`: Torque applied on the back foot rotor.
+- `action[3]`: Torque applied on the front thigh rotor.
+- `action[4]`: Torque applied on the front shin rotor.
+- `action[5]`: Torque applied on the front foot rotor.
+
+"""
+}
+
+
 ENV_SPECS = {
     "HalfCheetah-v4": {
         "description": "A 2D robot consisting of 9 links and 8 joints connecting them "
