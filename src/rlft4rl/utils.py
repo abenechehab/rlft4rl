@@ -8,9 +8,10 @@ import gymnasium as gym
 import random
 import numpy as np
 import torch
+from torch.utils.tensorboard import SummaryWriter
 
 
-def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> logging.Logger:
+def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> tuple:
     # Clear existing handlers
     root = logging.getLogger(logger_name)
     if root.handlers:
@@ -22,9 +23,9 @@ def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> logging.L
 
     # Create log filename with timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_dir = os.path.join(log_dir, env_id, f"{exp_name}")
-    os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"{timestamp}.log")
+    run_dir = os.path.join(log_dir, env_id, f"{exp_name}")
+    os.makedirs(run_dir, exist_ok=True)
+    log_file = os.path.join(run_dir, f"{timestamp}.log")
 
     # Set format for both handlers
     formatter = logging.Formatter(
@@ -45,7 +46,18 @@ def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> logging.L
     root.addHandler(file_handler)
     root.addHandler(console_handler)
 
-    return root, log_dir
+    # Set up TensorBoard logger
+    try:
+        tb_log_dir = os.path.join(run_dir, "tensorboard", timestamp)
+        os.makedirs(tb_log_dir, exist_ok=True)
+        writer = SummaryWriter(log_dir=tb_log_dir)
+    except ImportError:
+        root.warning(
+            "Failed to import TensorBoard. No TensorBoard logging will be performed."
+        )
+        writer = None
+
+    return root, run_dir, writer
 
 
 def make_env(env_id, seed, idx, capture_video, run_name):
