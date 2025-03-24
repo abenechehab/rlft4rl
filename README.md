@@ -17,7 +17,9 @@ from shimmy.registration import DM_CONTROL_SUITE_ENVS
 * llama 3.1 8B (local): models--meta-llama--Llama-3.1-8B/snapshots/8d10549bcf802355f2d6203a33ed27e81b15b9e5
 * llama 3.1 70B (local): models--meta-llama--Llama-3.1-70B/snapshots/349b2ddb53ce8f2849a6c168a81980ab25258dac
 * qwen 2.5 0.5B (local): models--Qwen--Qwen2.5-0.5B/snapshots/060db6499f32faf8b98477b0a26969ef7d8b9987
+* qwen 2.5 0.5B instruct (local): models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775
 * qwen 2.5 3B (local): models--Qwen--Qwen2.5-3B/snapshots/3aab1f1954e9cc14eb9509a215f9e5ca08227a9b
+* qwen 2.5 3B instruct (local): models--Qwen--Qwen2.5-3B-Instruct/snapshots/aa8e72537993ba99e69dfaafa59ed015b17504d1
 * SmolLM2-135M (local): models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/e2c3f7557efbdec707ae3a336371d169783f1da1
 * SmolLM2-360M (local): models--HuggingFaceTB--SmolLM2-360M-Instruct/snapshots/29ba36fc600930f3cfe6e1a93ab43af299542dc4
 * SmolLM2-1.7B (local): models--HuggingFaceTB--SmolLM2-1.7B-Instruct/snapshots/57aa3c6599c53705406c648e7acca7e11dc45ea3
