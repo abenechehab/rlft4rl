@@ -6,6 +6,7 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 from rlft4rl.utils import setup_logger, make_env, set_seed_everywhere
 from rlft4rl.llm_policy import LLMPolicy
@@ -32,7 +33,9 @@ class Args:
     n_examples: int = 3  # Number of examples for LLM policy system prompt
 
 
-def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
+def evaluate_llm_policy(
+    args: Args, logger: logging.Logger, ts_writer: SummaryWriter
+) -> Dict[str, Any]:
     """Evaluate a LLM as policy in the given environment."""
 
     # Create directory for videos if needed
@@ -109,6 +112,11 @@ def evaluate_llm_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
             step_count += 1
             pbar.update(1)
 
+            # log action values
+            if ep == 0:
+                for i in range(len(action)):
+                    ts_writer.add_scalar(f"action/dim_{i}", action[i], step_count)
+
         # Close the progress bar for this episode
         pbar.close()
 
@@ -151,7 +159,7 @@ def main(args: Args):
 
     # Setup logger
     model_name = args.model.split("/final_model")[0].split("/")[0].split("--")[-1]
-    logger, _ = setup_logger(
+    logger, _, ts_writer = setup_logger(
         logger_name="LLMPolicy",
         log_level=args.log_level,
         log_dir="logs",
@@ -160,7 +168,7 @@ def main(args: Args):
     )
 
     # Run evaluation
-    results = evaluate_llm_policy(args, logger)
+    results = evaluate_llm_policy(args, logger, ts_writer)
 
     # Log results
     logger.info(
