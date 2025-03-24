@@ -3,7 +3,7 @@ from typing import List, Optional, Dict
 import re
 import numpy as np
 from openai import OpenAI
-from rlft4rl.prompts import ENV_SPECS
+from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
 
 
 class LLMPolicy:
@@ -36,47 +36,16 @@ class LLMPolicy:
         self.n_try_gen: List[int] = []
 
     def init_prompt_template(self, env_name: str, examples: Optional[Dict] = None):
-        spec = ENV_SPECS[env_name]
+        desc = ENV_DESC[env_name]
 
         self.system_prompt = f"""
         You are the controller for a {env_name} robot in a physics simulation.
 
         Environment Description:
-        {spec["description"]}
-
-        Observation Space:
-        The observation is a {spec["obs_dim"]}-dimensional vector representing:
-        {", ".join([f"{i+1}. {desc}" for i, desc in enumerate(spec["obs_desc"])])}
-        Gym representation of the obs space:
-        {spec["obs_space"]}
-
-        Action Space:
-        The action is a {spec["action_dim"]}-dimensional vector representing:
-        {spec["action_desc"]}
-        Gym representation of the action space:
-        {spec["action_space"]}
-
-        Task:
-        {spec["task"]}
-
-        Reward Structure:
-        {spec["reward"]}
-
-        Simulation Frequency:
-        {spec["frequency"]}
-
-        Instructions:
-        1. Based on the current observation provided between <observation> and
-            </observation>, determine the optimal action values.
-        2. Your response must ONLY contain the numeric action values separated by
-            commas.
-        3. Do not include any explanations or additional text in your response.
-        4. Format your response exactly as: "action_dimension_1, action_dimension_2,
-            action_dimension_3, action_dimension_4, action_dimension_5,
-            action_dimension_6 </action>"
-        5. Each action dimension value should respect the range in the action space.
-
         """
+        self.system_prompt += desc
+        self.system_prompt += INSTRUCTIONS
+
         if examples:
             for i, (_, val) in enumerate(examples.items()):
                 self.system_prompt += f"""Example {i+1}:
@@ -129,23 +98,28 @@ class LLMPolicy:
             filtered_response = [
                 re.sub(r"[^0-9\-\.]", "", item) for item in full_response
             ][:6]
-            return raw_response, filtered_response
+            return raw_response, full_response, filtered_response
 
         count = 0
         app_act_dim = ""
         while True:
-            raw_response, filtered_response = generate_response(app_act_dim=app_act_dim)
+            raw_response, full_response, filtered_response = generate_response(
+                app_act_dim=app_act_dim
+            )
             if len(filtered_response) == 6:
                 self.n_try_gen.append(count + 1)
                 break
             else:
-                app_act_dim = ", ".join(filtered_response) + ", "
+                if raw_response.count(",") == 5:
+                    app_act_dim = ", ".join(filtered_response) + ", "
+                else:
+                    app_act_dim = ""
             count += 1
             if count > self.tol_repeat_gen:
                 raise Exception(
                     "Failed to get a valid response from the model! "
                     f"Expected 6 action dimensions, got raw: {raw_response},"
-                    f"filtered: {filtered_response}"
+                    f"full_response: {full_response}, filtered: {filtered_response}"
                 )
 
         action = [float(x) for x in filtered_response]
