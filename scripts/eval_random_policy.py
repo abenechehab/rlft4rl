@@ -94,7 +94,7 @@ def main(args: Args):
     set_seed_everywhere(seed=args.seed)
 
     # Setup logger
-    logger, _ = setup_logger(
+    logger, _, _ = setup_logger(
         logger_name="RP",
         log_level=args.log_level,
         log_dir="logs",
