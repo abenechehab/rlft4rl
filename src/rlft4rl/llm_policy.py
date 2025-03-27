@@ -58,7 +58,7 @@ class LLMPolicy:
         # Convert obs list to a comma-separated string without brackets
         obs_string = ", ".join([f"{val:.4f}" for val in obs])
         prompt = f"""<observation> {obs_string} </observation>
-        <action>"""
+        """
         return prompt
 
     def act(self, obs):
@@ -73,6 +73,7 @@ class LLMPolicy:
                         "role": "user",
                         "content": prompt + app_act_dim,
                     },
+                    {"role": "assistant", "content": "<action>"},
                 ],
                 temperature=self.temperature,
                 stream=True,
