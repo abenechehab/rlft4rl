@@ -11,7 +11,9 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 
 
-def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> tuple:
+def setup_logger(
+    logger_name, log_level, log_dir, env_id, exp_name, create_ts_writer: bool = True
+) -> tuple:
     # Clear existing handlers
     root = logging.getLogger(logger_name)
     if root.handlers:
@@ -47,15 +49,17 @@ def setup_logger(logger_name, log_level, log_dir, env_id, exp_name) -> tuple:
     root.addHandler(console_handler)
 
     # Set up TensorBoard logger
-    try:
-        tb_log_dir = os.path.join(run_dir, "tensorboard", timestamp)
-        os.makedirs(tb_log_dir, exist_ok=True)
-        writer = SummaryWriter(log_dir=tb_log_dir)
-    except ImportError:
-        root.warning(
-            "Failed to import TensorBoard. No TensorBoard logging will be performed."
-        )
-        writer = None
+    writer = None
+    if create_ts_writer:
+        try:
+            tb_log_dir = os.path.join(run_dir, "tensorboard", timestamp)
+            os.makedirs(tb_log_dir, exist_ok=True)
+            writer = SummaryWriter(log_dir=tb_log_dir)
+        except ImportError:
+            root.warning(
+                "Failed to import TensorBoard. "
+                "No TensorBoard logging will be performed."
+            )
 
     return root, run_dir, writer
 
