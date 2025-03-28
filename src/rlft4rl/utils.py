@@ -12,7 +12,12 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 def setup_logger(
-    logger_name, log_level, log_dir, env_id, exp_name, create_ts_writer: bool = True
+    logger_name,
+    exp_name,
+    log_dir,
+    env_id,
+    log_level: str = "INFO",
+    create_ts_writer: bool = True,
 ) -> tuple:
     # Clear existing handlers
     root = logging.getLogger(logger_name)
