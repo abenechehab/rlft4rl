@@ -16,6 +16,7 @@ results/
 notebooks/external/
 notebooks/internal
 data/sft
+models/
 
 
 .ruff_cache/
