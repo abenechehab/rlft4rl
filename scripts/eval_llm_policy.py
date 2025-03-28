@@ -76,7 +76,7 @@ def evaluate_llm_policy(
         logit_bias=args.logit_bias,
         good_tokens=[] if not args.good_tokens else args.good_tokens.split(","),
         env_name=args.env_id,
-        examples=examples,
+        examples=examples if args.n_examples else None,
     )
 
     # Log the system prompt from LLM policy
@@ -94,7 +94,7 @@ def evaluate_llm_policy(
         pbar = tqdm(desc="(-> Timesteps", leave=False)
         while not done:
             # LLM action
-            action = llm_policy.act(obs)
+            action = llm_policy.act(obs, logger=logger)
             if step_count % args.freq_log_action == 0:
                 logger.info(
                     f"[Ep {ep + 1}, Step {step_count}] obs: {[f'{e:.4f}' for e in obs]}"
