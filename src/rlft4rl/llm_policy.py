@@ -56,24 +56,25 @@ class LLMPolicy:
 
     def obs_to_prompt(self, obs):
         # Convert obs list to a comma-separated string without brackets
-        obs_string = ", ".join([f"{val:.4f}" for val in obs])
-        prompt = f"""<observation> {obs_string} </observation>
-        """
+        obs_string = ", ".join([f"{val:.5f}" for val in obs])
+        prompt = f"""<observation> {obs_string} </observation>"""
         return prompt
 
-    def act(self, obs):
+    def act(self, obs, logger: logging.Logger):
         prompt = self.obs_to_prompt(obs)
 
         def generate_response(app_act_dim: str = ""):
+            if app_act_dim:
+                app_act_dim = "<action> " + app_act_dim
             stream = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": self.system_prompt},
                     {
                         "role": "user",
-                        "content": prompt + app_act_dim,
+                        "content": prompt,
                     },
-                    {"role": "assistant", "content": "<action>"},
+                    {"role": "assistant", "content": app_act_dim},
                 ],
                 temperature=self.temperature,
                 stream=True,
@@ -89,7 +90,9 @@ class LLMPolicy:
                     raw_response += chunk.choices[0].delta.content
                 except TypeError:
                     pass
-            full_response = app_act_dim + raw_response.split(" </action>")[0]
+            full_response = (
+                app_act_dim + raw_response.split("<action> ")[-1].split(" </action>")[0]
+            )
             full_response = full_response.split(",")
 
             if full_response[0] == "":
@@ -107,14 +110,15 @@ class LLMPolicy:
             raw_response, full_response, filtered_response = generate_response(
                 app_act_dim=app_act_dim
             )
+            logger.debug(f"raw_response: {raw_response}")
             if len(filtered_response) == 6:
                 self.n_try_gen.append(count + 1)
                 break
             else:
-                if raw_response.count(",") == 5:
-                    app_act_dim = ", ".join(filtered_response) + ", "
-                else:
-                    app_act_dim = ""
+                # if raw_response.count(",") == 5:
+                app_act_dim = ", ".join(filtered_response) + ", "
+                # else:
+                #     app_act_dim = ""
             count += 1
             if count > self.tol_repeat_gen:
                 raise Exception(
