@@ -44,8 +44,9 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
     """Explore a Minari dataset by sampling episodes."""
     # Create a filename for the training examples
     filename = (
-        "data/sft/" + args.dataset_id.replace("/", "_") +
-        f"_{args.n_episodes}_sp{int(args.system_prompt)}.json"
+        "data/sft/"
+        + args.dataset_id.replace("/", "_")
+        + f"_{args.n_episodes}_sp{int(args.system_prompt)}.json"
     )
 
     # make system prompt

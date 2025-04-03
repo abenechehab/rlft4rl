@@ -1,7 +1,9 @@
 from dataclasses import dataclass
+import random
 from distutils.util import strtobool  # type: ignore
 import os
-import re
+
+# import re
 from typing import Optional
 
 import torch
@@ -10,6 +12,8 @@ from transformers import (
     AutoTokenizer,
     set_seed,
     BitsAndBytesConfig,
+    EarlyStoppingCallback,
+    TrainerCallback,
 )
 from trl import (
     SFTTrainer,
@@ -32,6 +36,7 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 @dataclass
 class ScriptArguments:
     dataset_id_or_path: str
+    eval_dataset_id_or_path: str
     dataset_size: int
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
@@ -48,40 +53,6 @@ logger, _, _ = setup_logger(
     exp_name="sft",
     create_ts_writer=False,
 )
-
-########################
-# Helper functions
-########################
-
-
-def setup_model_for_spectrum(model, spectrum_config_path):
-    unfrozen_parameters = []
-    with open(spectrum_config_path, "r") as fin:
-        yaml_parameters = fin.read()
-
-    # get the unfrozen parameters from the yaml file
-    for line in yaml_parameters.splitlines():
-        if line.startswith("- "):
-            unfrozen_parameters.append(line.split("- ")[1])
-
-    # freeze all parameters
-    for param in model.parameters():
-        param.requires_grad = False
-    # unfreeze Spectrum parameters
-    for name, param in model.named_parameters():
-        if any(
-            re.match(unfrozen_param, name) for unfrozen_param in unfrozen_parameters
-        ):
-            param.requires_grad = True
-
-    # COMMENT IN: for sanity check print the trainable parameters
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f"Trainable parameter: {name}")
-
-    return model
-
-
 #######################################################################################
 
 
@@ -96,9 +67,9 @@ def train_function(
     logger.info(f"Script parameters {script_args}")
     logger.info(f"Training/evaluation parameters {training_args}")
 
-    ###############
+    #########################
     # Load datasets
-    ###############
+    #########################
     if script_args.dataset_id_or_path.endswith(".json"):
         train_dataset = load_dataset(
             "json", data_files=script_args.dataset_id_or_path, split="train"
@@ -108,16 +79,27 @@ def train_function(
             script_args.dataset_id_or_path, split=script_args.dataset_splits
         )
 
-    train_dataset = train_dataset.select(range(script_args.dataset_size))
+    if script_args.dataset_size > 0:
+        dataset_size = min(script_args.dataset_size, len(train_dataset))
+        train_dataset = train_dataset.select(range(dataset_size))
+
+    if script_args.eval_dataset_id_or_path.endswith(".json"):
+        eval_dataset = load_dataset(
+            "json", data_files=script_args.eval_dataset_id_or_path, split="train"
+        )
+    else:
+        eval_dataset = load_dataset(
+            script_args.eval_dataset_id_or_path, split=script_args.dataset_splits
+        )
 
     logger.info(
         f"Loaded dataset with {len(train_dataset)} samples and the following "
         f"features: {train_dataset.features}"
     )
 
-    ################
+    #########################
     # Load tokenizer
-    ################
+    #########################
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
     )
@@ -127,9 +109,9 @@ def train_function(
     # special tokens as by default embedding layers will not be trainable
     tokenizer.padding_side = "right"  # to prevent warnings
 
-    #######################
+    #########################
     # Load pretrained model
-    #######################
+    #########################
 
     # define model kwargs
     model_kwargs = dict(
@@ -180,6 +162,7 @@ def train_function(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         peft_config=peft_config,
     )
@@ -187,9 +170,71 @@ def train_function(
     if trainer.accelerator.is_main_process and peft_config:
         trainer.model.print_trainable_parameters()
 
-    ###############
+    class LoggingCallback(TrainerCallback):
+        def __init__(
+            self, eval_dataset, tokenizer, log_file="eval_log.txt", num_samples=1
+        ):
+            self.eval_dataset = eval_dataset
+            self.tokenizer = tokenizer
+            self.log_file = log_file
+            self.num_samples = num_samples
+            self.log_file_path = os.path.join(training_args.output_dir, log_file)
+            # Clear the log file at the beginning of training
+            with open(self.log_file_path, "w") as f:
+                f.write("Evaluation Log:\n")
+
+        def on_evaluate(self, args, state, control, model, **kwargs):
+            # Select random samples from the eval dataset
+            indices = random.sample(range(len(self.eval_dataset)), self.num_samples)
+            samples = [self.eval_dataset[i] for i in indices]
+
+            with open(self.log_file_path, "a") as f:
+                for sample in samples:
+                    # Extract the query from the sample
+                    query = "".join(
+                        [
+                            msg["content"]
+                            for msg in sample["messages"]
+                            if msg["role"] in ["system", "user"]
+                        ]
+                    )  # Extract user message
+
+                    # Generate response from the model
+                    input_ids = self.tokenizer.encode(query, return_tensors="pt").to(
+                        model.device
+                    )
+                    with torch.no_grad():
+                        output = model.generate(
+                            input_ids, max_length=920, num_return_sequences=1
+                        )  # Adjust max_length as needed
+                    response = self.tokenizer.decode(
+                        output[0], skip_special_tokens=True
+                    )
+
+                    # Log the query and response
+                    f.write(f"Query: {query}\nResponse: {response}\n\n")
+            logger.info(
+                f"Wrote {self.num_samples} query/response pairs to {self.log_file_path}"
+            )
+
+    # Instantiate the logging callback
+    logging_callback = LoggingCallback(eval_dataset, tokenizer)
+    trainer.add_callback(logging_callback)
+
+    #########################
     # Training loop
-    ###############
+    #########################
+
+    # Add EarlyStopping callback
+    early_stopping_callback = EarlyStoppingCallback(
+        early_stopping_patience=5,
+        # Number of evaluations with no improvement after which training will be stopped
+        early_stopping_threshold=0.01,
+        # improvement over best objective is less than that amount, the training could
+        # be stopped.
+    )
+    trainer.add_callback(early_stopping_callback)
+
     logger.info(f"*** Starting training for {training_args.num_train_epochs} epochs***")
     train_result = trainer.train()
     # log metrics
