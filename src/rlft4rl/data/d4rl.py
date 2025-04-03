@@ -23,6 +23,7 @@ class Args:
     n_episodes: int = 5  # Number of sampling iterations
     verbose: bool = True  # Print detailed information
     log_level: str = "INFO"  # Logging level
+    system_prompt: bool = True  # Use system prompt
 
 
 def obs_to_prompt(obs):
@@ -43,7 +44,8 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
     """Explore a Minari dataset by sampling episodes."""
     # Create a filename for the training examples
     filename = (
-        "data/sft/" + args.dataset_id.replace("/", "_") + f"_{args.n_episodes}.json"
+        "data/sft/" + args.dataset_id.replace("/", "_") +
+        f"_{args.n_episodes}_sp{int(args.system_prompt)}.json"
     )
 
     # make system prompt
@@ -75,13 +77,13 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
             act_promp = action_to_prompt(act)
 
             # Construct a training example similar to the one in the user's example
-            training_example = {
-                "messages": [
-                    {"content": system_prompt, "role": "system"},
-                    {"content": obs_promp, "role": "user"},
-                    {"content": act_promp, "role": "assistant"},
-                ]
-            }
+            messages = []
+            if args.system_prompt:
+                messages.append({"content": system_prompt, "role": "system"})
+            messages.append({"content": obs_promp, "role": "user"})
+            messages.append({"content": act_promp, "role": "assistant"})
+
+            training_example = {"messages": messages}
 
             # Write the training example to a JSON file
             with open(filename, "a") as f:
@@ -91,7 +93,6 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
             # If verbose, print the training example
             if i == 0 and t == 0:
                 logger.info(f"Training example: {training_example}")
-
     return
 
 
