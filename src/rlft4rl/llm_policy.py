@@ -19,6 +19,7 @@ class LLMPolicy:
         env_name,
         tol_repeat_gen: int = 10,
         examples: Optional[Dict] = None,
+        system_prompt: bool = True,
     ):
         self.client = OpenAI(
             base_url=api_url,
@@ -30,10 +31,14 @@ class LLMPolicy:
         self.logit_bias = logit_bias
         self.good_tokens = good_tokens
 
-        self.init_prompt_template(env_name=env_name, examples=examples)
+        self.init_prompt_template(
+            env_name=env_name,
+            examples=examples,
+        )
 
         self.tol_repeat_gen = tol_repeat_gen
         self.n_try_gen: List[int] = []
+        self.bool_system_prompt = system_prompt
 
     def init_prompt_template(self, env_name: str, examples: Optional[Dict] = None):
         desc = ENV_DESC[env_name]
@@ -66,32 +71,35 @@ class LLMPolicy:
         def generate_response(app_act_dim: str = ""):
             if app_act_dim:
                 app_act_dim = "<action> " + app_act_dim
-            stream = self.client.chat.completions.create(
+            messages = []
+            if self.bool_system_prompt:
+                messages.append({"content": self.system_prompt, "role": "system"})
+            messages.append({"content": prompt, "role": "user"})
+            # messages.append({"content": app_act_dim, "role": "assistant"})
+            response = self.client.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": self.system_prompt},
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                    {"role": "assistant", "content": app_act_dim},
-                ],
-                temperature=self.temperature,
-                stream=True,
-                max_tokens=2 * self.prediction_horizon,
-                logit_bias={
-                    id: 30 if self.logit_bias else 0 for id in self.good_tokens
-                },
+                messages=messages,
+                # temperature=self.temperature,
+                stream=False,
+                max_tokens=75,
+                # logit_bias={
+                #     id: 30 if self.logit_bias else 0 for id in self.good_tokens
+                # },
             )
 
-            raw_response = ""
-            for chunk in stream:
-                try:
-                    raw_response += chunk.choices[0].delta.content
-                except TypeError:
-                    pass
+            # raw_response = ""
+            # for chunk in stream:
+            #     try:
+            #         raw_response += chunk.choices[0].delta.content
+            #     except TypeError:
+            #         pass
+
+            raw_response = response.choices[0].message.content
+
+            # breakpoint()
+
             full_response = (
-                app_act_dim + raw_response.split("<action> ")[-1].split(" </action>")[0]
+                app_act_dim + raw_response.split("<action>")[-1].split("</action>")[0]
             )
             full_response = full_response.split(",")
 
@@ -113,12 +121,17 @@ class LLMPolicy:
             logger.debug(f"raw_response: {raw_response}")
             if len(filtered_response) == 6:
                 self.n_try_gen.append(count + 1)
-                break
+                try:
+                    action = [float(x) for x in filtered_response]
+                    break
+                except Exception as e:
+                    logger.debug(f"excpetion {e} has occured. repeating!")
             else:
                 # if raw_response.count(",") == 5:
-                app_act_dim = ", ".join(filtered_response) + ", "
+                # app_act_dim = ", ".join(filtered_response) + ", "
                 # else:
                 #     app_act_dim = ""
+                pass
             count += 1
             if count > self.tol_repeat_gen:
                 raise Exception(
@@ -126,8 +139,6 @@ class LLMPolicy:
                     f"Expected 6 action dimensions, got raw: {raw_response},"
                     f"full_response: {full_response}, filtered: {filtered_response}"
                 )
-
-        action = [float(x) for x in filtered_response]
         return np.array(action)
 
     def log(self, logger: logging.Logger):
