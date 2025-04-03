@@ -16,18 +16,16 @@ class PromptTemplate:
         return self.template.render(**kwargs)
 
 
-INSTRUCTIONS = """
-Instructions:
+INSTRUCTIONS = """Instructions:
 1. Based on the current observation provided between <observation> and
     </observation>, determine the optimal action values.
-2. Write your answer after the <action> tag.
+2. Write your answer between <action> and </action> tags.
 3. Your response must ONLY contain the numeric action values separated by
     commas.
 4. Do not include any explanations or additional text in your response.
-5. Format your response exactly as: "action_dimension_1, action_dimension_2,
-    action_dimension_3, ... </action>"
-6. Each action dimension value should respect the range in the action space.
-
+5. Format your response exactly as: "<action> action[0], action[1],
+    action[2], action[3], action[4], action[5] </action>"
+6. Each action value should respect the range in the action space.
 """
 
 ENV_DESC = {
@@ -75,7 +73,6 @@ controlling the torques applied to each of the HalfCheetah's actuated joints.
 - `action[3]`: Torque applied on the front thigh rotor.
 - `action[4]`: Torque applied on the front shin rotor.
 - `action[5]`: Torque applied on the front foot rotor.
-
 """
 }
 
