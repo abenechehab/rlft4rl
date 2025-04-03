@@ -31,6 +31,7 @@ class Args:
     api_key: str = "sk-1234"  # API key
     freq_log_action: int = 250  # Frequency to log action
     n_examples: int = 3  # Number of examples for LLM policy system prompt
+    system_prompt: bool = True  # Use system prompt
 
 
 def evaluate_llm_policy(
@@ -77,6 +78,7 @@ def evaluate_llm_policy(
         good_tokens=[] if not args.good_tokens else args.good_tokens.split(","),
         env_name=args.env_id,
         examples=examples if args.n_examples else None,
+        system_prompt=args.system_prompt,
     )
 
     # Log the system prompt from LLM policy
