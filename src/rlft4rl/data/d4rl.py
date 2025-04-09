@@ -24,19 +24,20 @@ class Args:
     verbose: bool = True  # Print detailed information
     log_level: str = "INFO"  # Logging level
     system_prompt: bool = True  # Use system prompt
+    chat_template: bool = False  # Use chat template
 
 
 def obs_to_prompt(obs):
     # Convert obs list to a comma-separated string without brackets
-    obs_string = ", ".join([f"{val:.5f}" for val in obs])
-    prompt = f"""<observation> {obs_string} </observation>"""
+    obs_string = ",".join([f"{val:.5f}" for val in obs])
+    prompt = f"""<observation>{obs_string}</observation>"""
     return prompt
 
 
 def action_to_prompt(action):
     # Convert obs list to a comma-separated string without brackets
-    action_string = ", ".join([f"{val:.5f}" for val in action])
-    prompt = f"""<action> {action_string} </action>"""
+    action_string = ",".join([f"{val:.5f}" for val in action])
+    prompt = f"""<action>{action_string}</action>"""
     return prompt
 
 
@@ -46,7 +47,8 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
     filename = (
         "data/sft/"
         + args.dataset_id.replace("/", "_")
-        + f"_{args.n_episodes}_sp{int(args.system_prompt)}.json"
+        + f"_{args.n_episodes}_sp{int(args.system_prompt)}_ct{int(args.chat_template)}."
+        + "json"
     )
 
     # make system prompt
@@ -77,14 +79,16 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
             obs_promp = obs_to_prompt(obs)
             act_promp = action_to_prompt(act)
 
-            # Construct a training example similar to the one in the user's example
-            messages = []
-            if args.system_prompt:
-                messages.append({"content": system_prompt, "role": "system"})
-            messages.append({"content": obs_promp, "role": "user"})
-            messages.append({"content": act_promp, "role": "assistant"})
-
-            training_example = {"messages": messages}
+            if args.chat_template:
+                # Construct a training example similar to the one in the user's example
+                messages = []
+                if args.system_prompt:
+                    messages.append({"content": system_prompt, "role": "system"})
+                messages.append({"content": obs_promp, "role": "user"})
+                messages.append({"content": act_promp, "role": "assistant"})
+                training_example = {"messages": messages}
+            else:
+                training_example = {"observation": obs_promp, "action": act_promp}
 
             # Write the training example to a JSON file
             with open(filename, "a") as f:
