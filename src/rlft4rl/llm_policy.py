@@ -1,9 +1,10 @@
 import logging
 from typing import List, Optional, Dict
-import re
 import numpy as np
 from openai import OpenAI
 from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
+from rlft4rl.sampling import repeat_on_error
+from transformers import AutoTokenizer
 
 
 class LLMPolicy:
@@ -68,77 +69,45 @@ class LLMPolicy:
     def act(self, obs, logger: logging.Logger):
         prompt = self.obs_to_prompt(obs)
 
-        def generate_response(app_act_dim: str = ""):
-            if app_act_dim:
-                app_act_dim = "<action> " + app_act_dim
-            messages = []
-            if self.bool_system_prompt:
-                messages.append({"content": self.system_prompt, "role": "system"})
-            messages.append({"content": prompt, "role": "user"})
-            # messages.append({"content": app_act_dim, "role": "assistant"})
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                # temperature=self.temperature,
-                stream=False,
-                max_tokens=75,
-                # logit_bias={
-                #     id: 30 if self.logit_bias else 0 for id in self.good_tokens
-                # },
-            )
+        # compute max_tokens based on example
+        ex_action = (
+            "<action>-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
+        )
+        tokenizer = AutoTokenizer.from_pretrained(self.model)
+        max_tokens = len(tokenizer.tokenize(ex_action))
 
-            # raw_response = ""
-            # for chunk in stream:
-            #     try:
-            #         raw_response += chunk.choices[0].delta.content
-            #     except TypeError:
-            #         pass
+        logger.debug(f"max_tokens: {max_tokens}")
 
-            raw_response = response.choices[0].message.content
+        tokens = set()
+        for i in range(1000):
+            toks = tokenizer.tokenize(str(i))
+            tokens.update(toks)
+        num_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # number tokens
+        tokens = set()
+        tokens.update(tokenizer.tokenize("."))
+        tokens.update(tokenizer.tokenize("-"))
+        symbol_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # symbol tokens
+        tokens = set()
+        tokens.update(tokenizer.tokenize("<action></action>"))
+        tag_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # tag tokens
+        tokens = set()
+        tokens.update(tokenizer.tokenize(","))
+        sep_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # separator tokens
 
-            # breakpoint()
-
-            full_response = (
-                app_act_dim + raw_response.split("<action>")[-1].split("</action>")[0]
-            )
-            full_response = full_response.split(",")
-
-            if full_response[0] == "":
-                full_response = full_response[1:]
-
-            # Filter to keep only alphanumeric, -, and . characters
-            filtered_response = [
-                re.sub(r"[^0-9\-\.]", "", item) for item in full_response
-            ][:6]
-            return raw_response, full_response, filtered_response
-
-        count = 0
-        app_act_dim = ""
-        while True:
-            raw_response, full_response, filtered_response = generate_response(
-                app_act_dim=app_act_dim
-            )
-            logger.debug(f"raw_response: {raw_response}")
-            if len(filtered_response) == 6:
-                self.n_try_gen.append(count + 1)
-                try:
-                    action = [float(x) for x in filtered_response]
-                    break
-                except Exception as e:
-                    logger.debug(f"excpetion {e} has occured. repeating!")
-            else:
-                # if raw_response.count(",") == 5:
-                # app_act_dim = ", ".join(filtered_response) + ", "
-                # else:
-                #     app_act_dim = ""
-                pass
-            count += 1
-            if count > self.tol_repeat_gen:
-                raise Exception(
-                    "Failed to get a valid response from the model! "
-                    f"Expected 6 action dimensions, got raw: {raw_response},"
-                    f"full_response: {full_response}, filtered: {filtered_response}"
-                )
+        action, n_try_gen = repeat_on_error(
+            client=self.client,
+            prompt=prompt,
+            system_prompt=self.system_prompt if self.bool_system_prompt else None,
+            model=self.model,
+            n_action_dim=6,  # TODO: set this automatically
+            temperature=self.temperature,
+            max_tokens=max_tokens,
+            logger=logger,
+            tol_repeat_gen=self.tol_repeat_gen,
+            logit_bias=100,
+            good_tokens=num_tk + symbol_tk + tag_tk + sep_tk,
+        )
+        self.n_try_gen = n_try_gen
         return np.array(action)
 
     def log(self, logger: logging.Logger):
