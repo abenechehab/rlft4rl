@@ -12,7 +12,7 @@ from transformers import (
     AutoTokenizer,
     set_seed,
     BitsAndBytesConfig,
-    EarlyStoppingCallback,
+    # EarlyStoppingCallback,
     TrainerCallback,
 )
 from trl import (
@@ -36,8 +36,8 @@ os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 @dataclass
 class ScriptArguments:
     dataset_id_or_path: str
-    eval_dataset_id_or_path: str
     dataset_size: int
+    eval_dataset_id_or_path: str = None
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
     spectrum_config_path: Optional[str] = None
@@ -83,14 +83,17 @@ def train_function(
         dataset_size = min(script_args.dataset_size, len(train_dataset))
         train_dataset = train_dataset.select(range(dataset_size))
 
-    if script_args.eval_dataset_id_or_path.endswith(".json"):
-        eval_dataset = load_dataset(
-            "json", data_files=script_args.eval_dataset_id_or_path, split="train"
-        )
+    if script_args.eval_dataset_id_or_path:
+        if script_args.eval_dataset_id_or_path.endswith(".json"):
+            eval_dataset = load_dataset(
+                "json", data_files=script_args.eval_dataset_id_or_path, split="train"
+            )
+        else:
+            eval_dataset = load_dataset(
+                script_args.eval_dataset_id_or_path, split=script_args.dataset_splits
+            )
     else:
-        eval_dataset = load_dataset(
-            script_args.eval_dataset_id_or_path, split=script_args.dataset_splits
-        )
+        eval_dataset = None
 
     logger.info(
         f"Loaded dataset with {len(train_dataset)} samples and the following "
@@ -155,6 +158,14 @@ def train_function(
     # set chat template to OAI chatML, remove if you start from a fine-tuned model
     # model, tokenizer = setup_chat_format(model, tokenizer)
 
+    # add special tokens
+    num_added_toks = tokenizer.add_tokens(
+        ["<observation>", "</observation>", "<action>", "</action>"],
+        special_tokens=True,
+    )
+    model.resize_token_embeddings(len(tokenizer))
+    logger.info(f"*** num_added_toks {num_added_toks} ***")
+
     ########################
     # Initialize the Trainer
     ########################
@@ -205,7 +216,11 @@ def train_function(
                     )
                     with torch.no_grad():
                         output = model.generate(
-                            input_ids, max_length=920, num_return_sequences=1
+                            input_ids,
+                            max_length=128,
+                            num_return_sequences=1,
+                            early_stopping=True,
+                            os_token_id=self.tokenizer.eos_token_id,
                         )  # Adjust max_length as needed
                     response = self.tokenizer.decode(
                         output[0], skip_special_tokens=True
@@ -218,22 +233,23 @@ def train_function(
             )
 
     # Instantiate the logging callback
-    logging_callback = LoggingCallback(eval_dataset, tokenizer)
-    trainer.add_callback(logging_callback)
+    # logging_callback = LoggingCallback(eval_dataset, tokenizer)
+    # trainer.add_callback(logging_callback)
 
     #########################
     # Training loop
     #########################
 
     # Add EarlyStopping callback
-    early_stopping_callback = EarlyStoppingCallback(
-        early_stopping_patience=5,
-        # Number of evaluations with no improvement after which training will be stopped
-        early_stopping_threshold=0.01,
-        # improvement over best objective is less than that amount, the training could
-        # be stopped.
-    )
-    trainer.add_callback(early_stopping_callback)
+    # early_stopping_callback = EarlyStoppingCallback(
+    #     early_stopping_patience=5,
+    #     # Number of evaluations with no improvement after which training will be
+    # stopped
+    #     early_stopping_threshold=0.01,
+    #     # improvement over best objective is less than that amount, the training could
+    #     # be stopped.
+    # )
+    # trainer.add_callback(early_stopping_callback)
 
     logger.info(f"*** Starting training for {training_args.num_train_epochs} epochs***")
     train_result = trainer.train()
