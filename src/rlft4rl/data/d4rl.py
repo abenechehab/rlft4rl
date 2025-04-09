@@ -10,8 +10,6 @@ from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
 
 import minari
 
-os.environ["MINARI_DATASETS_PATH"] = "/mnt/nas_2/abdelhakim/minari"
-
 
 @dataclass
 class Args:
@@ -62,7 +60,7 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
     system_prompt += desc
     system_prompt += INSTRUCTIONS
 
-    dataset = minari.load_dataset(args.dataset_id)
+    dataset = minari.load_dataset(args.dataset_id, download=True)
     dataset.set_seed(seed=args.seed)
 
     episodes = dataset.sample_episodes(n_episodes=args.n_episodes)
