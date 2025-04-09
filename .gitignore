@@ -18,6 +18,7 @@ notebooks/internal
 data/sft
 models/
 
+.venv
 
 .ruff_cache/
 
