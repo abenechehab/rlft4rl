@@ -23,6 +23,7 @@ classifiers = [
 
 [project.optional-dependencies]
 dev = ['ruff', 'pre-commit', 'black']
+flashattn = ['flash-attn==2.7.4.post1']
 
 [tool.setuptools]
 license-files = ['LICEN[CS]E*', 'COPYING*', 'NOTICE*', 'AUTHORS*']
