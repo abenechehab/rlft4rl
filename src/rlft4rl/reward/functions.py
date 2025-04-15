@@ -24,7 +24,8 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
             list[float]: Reward scores
         """
         # Check if the format is correct
-        regex = r"^<action>([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)</action>$"
+        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        regex_end = r"</action>$"
         rewards = []
 
         for completion in completions:
@@ -32,8 +33,6 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
 
             if add_action_tag:
                 response = "<action>" + response
-
-            breakpoint()
 
             # try:
             if random.random() < 0.1:  # 1% chance to write samples into a file
@@ -43,22 +42,28 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
                     f.write("\n\n==============\n")
                     f.write(response)
 
-            match = re.search(regex, response, re.DOTALL)
+            match_values = re.search(regex_values, response, re.DOTALL)
+            match_end = re.search(regex_end, response, re.DOTALL)
+            reward = 0.0
             # if the format is not correct, reward is 0
-            if match is None:
-                rewards.append(0.0)
+            if match_values is None:
+                reward -= 10.0
             else:
+                reward += 1.0
                 # Extract the numbers inside the <action> tag
-                numbers_str = match.group(1)
+                numbers_str = match_values.group(1)
                 # Split the numbers by commas, remove any extra spaces, and count the
                 # number of values
                 numbers = [num.strip() for num in numbers_str.split(",")]
 
                 # Check if the number of values matches the expected num_action_dim
                 if len(numbers) == num_action_dim:
-                    rewards.append(2.0)
-                else:
-                    rewards.append(1.0)
+                    reward += 1.0
+
+                if match_end is not None:
+                    reward += 1.0
+
+            rewards.append(reward)
             # except Exception:
             #     rewards.append(0.0)
         return rewards
