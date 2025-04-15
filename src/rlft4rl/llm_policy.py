@@ -2,7 +2,7 @@ import logging
 from typing import List, Optional, Dict
 import numpy as np
 from openai import OpenAI
-from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
+from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS, SHORT_SYSTEM_PROMPT_HALFCHEETAH
 from rlft4rl.sampling import repeat_on_error
 from transformers import AutoTokenizer
 
@@ -41,24 +41,27 @@ class LLMPolicy:
         self.n_try_gen: List[int] = []
         self.bool_system_prompt = system_prompt
 
-    def init_prompt_template(self, env_name: str, examples: Optional[Dict] = None):
-        desc = ENV_DESC[env_name]
+    def init_prompt_template(self, env_name: str, examples: Optional[Dict] = None, use_short: bool = True):
+        if use_short:
+            self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
+        else:
+            desc = ENV_DESC[env_name]
 
-        self.system_prompt = f"""
-        You are the controller for a {env_name} robot in a physics simulation.
+            self.system_prompt = f"""
+            You are the controller for a {env_name} robot in a physics simulation.
 
-        Environment Description:
-        """
-        self.system_prompt += desc
-        self.system_prompt += INSTRUCTIONS
+            Environment Description:
+            """
+            self.system_prompt += desc
+            self.system_prompt += INSTRUCTIONS
 
-        if examples:
-            for i, (_, val) in enumerate(examples.items()):
-                self.system_prompt += f"""Example {i+1}:
-                <observation> {val["obs"]} </observation>
-                <action> {val["action"]} </action>
+            if examples:
+                for i, (_, val) in enumerate(examples.items()):
+                    self.system_prompt += f"""Example {i+1}:
+                    <observation> {val["obs"]} </observation>
+                    <action> {val["action"]} </action>
 
-                """
+                    """
 
     def obs_to_prompt(self, obs):
         # Convert obs list to a comma-separated string without brackets
@@ -104,7 +107,7 @@ class LLMPolicy:
             max_tokens=max_tokens,
             logger=logger,
             tol_repeat_gen=self.tol_repeat_gen,
-            logit_bias=100,
+            logit_bias=self.logit_bias,
             good_tokens=num_tk + symbol_tk + tag_tk + sep_tk,
         )
         self.n_try_gen = n_try_gen
