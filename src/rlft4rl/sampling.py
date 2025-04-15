@@ -17,6 +17,8 @@ def repeat_on_error(
     logit_bias: Optional[Dict[str, int]] = None,
     good_tokens: List[str] = [],
 ):
+    regex = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+
     messages = []
     if system_prompt:
         messages.append({"content": system_prompt, "role": "system"})
@@ -36,34 +38,27 @@ def repeat_on_error(
         )
 
         raw_response = response.choices[0].message.content
-
-        full_response = raw_response.split("<action>")[-1].split("</action>")[0]
-        full_response = full_response.split(",")
-        if full_response[0] == "":
-            full_response = full_response[1:]
-
-        # Filter to keep only alphanumeric, -, and . characters
-        filtered_response = [re.sub(r"[^0-9\-\.]", "", item) for item in full_response]
-
-        # only keep n_action_dim values
-        filtered_response = filtered_response[:n_action_dim]
-
         logger.debug(f"raw_response: {raw_response}")
-        logger.debug(f"full_response: {full_response}")
-        logger.debug(f"filtered_response: {filtered_response}")
-        if len(filtered_response) == n_action_dim:
+
+        match = re.search(regex, raw_response, re.DOTALL)
+
+        if match is None:
             n_try_gen.append(count + 1)
-            try:
-                action = [float(x) for x in filtered_response]
+        else:
+            numbers_str = match.group(1)
+            numbers = [num.strip() for num in numbers_str.split(",")]
+            if len(numbers) == n_action_dim:
+                action = [float(x) for x in numbers]
                 break
-            except Exception as e:
-                logger.debug(f"excpetion {e} has occured. repeating!")
+            else:
+                n_try_gen.append(count + 1)
+                logger.debug(f"Expected {n_action_dim} numbers, got {len(numbers)}")
+
         count += 1
         if count > tol_repeat_gen:
             raise Exception(
                 f"Failed to get a valid response after {count} repetitions! "
-                f"Expected action of dim {n_action_dim}, got raw: {raw_response},"
-                f"full: {full_response}, filtered: {filtered_response}"
+                f"Expected action of dim {n_action_dim}, got: {raw_response}"
             )
     return action, n_try_gen
 
