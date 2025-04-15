@@ -12,7 +12,7 @@ from transformers import (
     AutoTokenizer,
     set_seed,
     BitsAndBytesConfig,
-    # EarlyStoppingCallback,
+    EarlyStoppingCallback,
     TrainerCallback,
 )
 from trl import (
@@ -21,7 +21,7 @@ from trl import (
     ModelConfig,
     SFTConfig,
     get_peft_config,
-    # setup_chat_format,
+    setup_chat_format,
 )
 from datasets import load_dataset
 
@@ -41,6 +41,11 @@ class ScriptArguments:
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
     spectrum_config_path: Optional[str] = None
+    setup_chat_format: bool = False
+    early_stopping_callback: bool = False
+    # Whether to use the early stopping callback
+    logging_callback: bool = False
+    # Whether to use the logging callback
 
 
 ########################
@@ -100,6 +105,43 @@ def train_function(
         f"features: {train_dataset.features}"
     )
 
+    # add special tokens
+    obs_start = "<observation>"
+    obs_end = "</observation>"
+    action_start = "<action>"
+    action_end = "</action>"
+
+    system_prompt = f"""You are the controller for a HalfCheetah robot in a physics
+    simulation. The HalfCheetah is a 2-dimensional robot consisting of 9 body parts
+    and 8 connecting joints. You will receive the observation between {obs_start}
+    and {obs_end} tags, which contains the robot's state. Your task is to generate an
+     action between {action_start} and {action_end} tags. The action is a
+    comma-separated list of 6 numbers, each representing the torque applied to the
+    robot's joints (back thigh, back shin, back foot, front thigh, front shin, front
+    foot). Example output: {action_start}-0.39555,-0.66661,-0.36855,0.91655,
+    #-0.81651,1.16655{action_end}."""
+
+    # Format datasets
+    train_dataset = train_dataset.map(
+        lambda x: {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": x["observation"]},
+                {"role": "assistant", "content": x["action"]},
+            ],
+        }
+    )
+
+    eval_dataset = eval_dataset.map(
+        lambda x: {
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": x["observation"]},
+                {"role": "assistant", "content": x["action"]},
+            ],
+        }
+    )
+
     #########################
     # Load tokenizer
     #########################
@@ -156,14 +198,19 @@ def train_function(
     # tokens as by default embedding layers will not be trainable
 
     # set chat template to OAI chatML, remove if you start from a fine-tuned model
-    # model, tokenizer = setup_chat_format(model, tokenizer)
+    if script_args.setup_chat_format:
+        model, tokenizer = setup_chat_format(model, tokenizer)
 
     # add special tokens
     num_added_toks = tokenizer.add_tokens(
-        ["<observation>", "</observation>", "<action>", "</action>"],
+        [obs_start, obs_end, action_start, action_end],
         special_tokens=True,
     )
     model.resize_token_embeddings(len(tokenizer))
+    # Set action_end as the EOS token
+    tokenizer.eos_token = action_end
+    tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(action_end)
+
     logger.info(f"*** num_added_toks {num_added_toks} ***")
 
     ########################
@@ -171,10 +218,10 @@ def train_function(
     ########################
     trainer = SFTTrainer(
         model=model,
+        processing_class=tokenizer,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        tokenizer=tokenizer,
         peft_config=peft_config,
     )
 
@@ -217,10 +264,10 @@ def train_function(
                     with torch.no_grad():
                         output = model.generate(
                             input_ids,
-                            max_length=128,
-                            num_return_sequences=1,
-                            early_stopping=True,
-                            os_token_id=self.tokenizer.eos_token_id,
+                            max_new_tokens=100,
+                            # num_return_sequences=1,
+                            # early_stopping=True,
+                            eos_token_id=self.tokenizer.eos_token_id,
                         )  # Adjust max_length as needed
                     response = self.tokenizer.decode(
                         output[0], skip_special_tokens=True
@@ -233,23 +280,24 @@ def train_function(
             )
 
     # Instantiate the logging callback
-    # logging_callback = LoggingCallback(eval_dataset, tokenizer)
-    # trainer.add_callback(logging_callback)
+    logging_callback = LoggingCallback(eval_dataset, tokenizer)
+    if script_args.logging_callback:
+        trainer.add_callback(logging_callback)
 
     #########################
     # Training loop
     #########################
 
     # Add EarlyStopping callback
-    # early_stopping_callback = EarlyStoppingCallback(
-    #     early_stopping_patience=5,
-    #     # Number of evaluations with no improvement after which training will be
-    # stopped
-    #     early_stopping_threshold=0.01,
-    #     # improvement over best objective is less than that amount, the training could
-    #     # be stopped.
-    # )
-    # trainer.add_callback(early_stopping_callback)
+    early_stopping_callback = EarlyStoppingCallback(
+        early_stopping_patience=5,
+        # Number of evaluations with no improvement after which training will be stopped
+        early_stopping_threshold=0.01,
+        # improvement over best objective is less than that amount, the training could
+        # be stopped.
+    )
+    if script_args.early_stopping_callback:
+        trainer.add_callback(early_stopping_callback)
 
     logger.info(f"*** Starting training for {training_args.num_train_epochs} epochs***")
     train_result = trainer.train()
