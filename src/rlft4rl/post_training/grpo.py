@@ -20,6 +20,7 @@ from rlft4rl.utils import setup_logger, set_seed_everywhere
 from rlft4rl.reward.functions import (
     format_reward_func_constructor,
 )  # ,format_reward_func, equation_reward_func
+from rlft4rl.prompts import OBS_START, OBS_END, ACTION_START, ACTION_END, SHORT_SYSTEM_PROMPT_HALFCHEETAH
 
 
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
@@ -75,8 +76,11 @@ def grpo_function(
     )
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    # if we use peft we need to make sure we use a chat template that is not using
+    # special tokens as by default embedding layers will not be trainable
+    # tokenizer.padding_side = "left"  # to prevent warnings
 
-        #########################
+    #########################
     # Load pretrained model
     #########################
 
@@ -112,7 +116,7 @@ def grpo_function(
     # load the model with our kwargs
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path, **model_kwargs
-    )
+    ).to('cuda')
 
     training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
 
@@ -123,13 +127,9 @@ def grpo_function(
     # model, tokenizer = setup_chat_format(model, tokenizer)
 
     # add special tokens
-    obs_start = "<observation>"
-    obs_end = "</observation>"
-    action_start = "<action>"
-    action_end = "</action>"
 
     num_added_toks = tokenizer.add_tokens(
-        [obs_start, obs_end, action_start, action_end],
+        [OBS_START, OBS_END, ACTION_START, ACTION_END],
         special_tokens=True,
     )
     model.resize_token_embeddings(len(tokenizer))
@@ -160,28 +160,18 @@ def grpo_function(
         s = [float(x) for x in s]
         return np.array(s)
 
-    system_prompt = "You are the controller for a HalfCheetah robot in a physics "
-    "simulation. The HalfCheetah is a 2-dimensional robot consisting of 9 body parts "
-    f"and 8 connecting joints. You will receive the observation between {obs_start}"
-    f"and {obs_end} tags, which contains the robot's state. Your task is to generate an"
-    f" action between {action_start} and {action_end} tags. The action is a "
-    "comma-separated list of 6 numbers, each representing the torque applied to the "
-    "robot's joints (back thigh, back shin, back foot, front thigh, front shin, front "
-    "foot)."  # Example output: {action_start}-0.39555,-0.66661,-0.36855,0.91655,
-    #-0.81651,1.16655{action_end}."
-
     dataset = dataset.map(
         lambda x: {
             "prompt": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": SHORT_SYSTEM_PROMPT_HALFCHEETAH},
                 {"role": "user", "content": x["observation"]},
                 {"role": "assistant", "content": "<action>"},
             ],
             "observation": convert_to_array(
-                s=x["observation"].split(obs_start)[-1].split(obs_end)[0]
+                s=x["observation"].split(OBS_START)[-1].split(OBS_END)[0]
             ),
             "action": convert_to_array(
-                x["action"].split(action_start)[-1].split(action_end)[0]
+                x["action"].split(ACTION_START)[-1].split(ACTION_END)[0]
             ),
         }
     )
