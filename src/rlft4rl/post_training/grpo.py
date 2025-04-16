@@ -17,10 +17,18 @@ from datasets import load_dataset
 from trl import GRPOConfig, GRPOTrainer, get_peft_config, ModelConfig, TrlParser
 
 from rlft4rl.utils import setup_logger, set_seed_everywhere
-from rlft4rl.reward.functions import (
+from rlft4rl.reward.reward_functions import (
     format_reward_func_constructor,
+    reward_model_func_constructor,
 )  # ,format_reward_func, equation_reward_func
-from rlft4rl.prompts import OBS_START, OBS_END, ACTION_START, ACTION_END, SHORT_SYSTEM_PROMPT_HALFCHEETAH
+from rlft4rl.reward.reward_models import RewardModel
+from rlft4rl.prompts import (
+    OBS_START,
+    OBS_END,
+    ACTION_START,
+    ACTION_END,
+    SHORT_SYSTEM_PROMPT_HALFCHEETAH,
+)
 
 
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
@@ -35,6 +43,12 @@ class ScriptArguments:
     dataset_size: int
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
+    reward_model_path: str = (
+        "models/reward_models/halfcheetah_expert/rw_multiGPU_saveall.pt"
+    )
+
+
+########################
 
 
 ########################
@@ -47,7 +61,6 @@ logger, _, _ = setup_logger(
     exp_name="grpo",
     create_ts_writer=False,
 )
-
 ########################
 
 
@@ -116,7 +129,7 @@ def grpo_function(
     # load the model with our kwargs
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path, **model_kwargs
-    ).to('cuda')
+    ).to("cuda")
 
     training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
 
@@ -186,12 +199,29 @@ def grpo_function(
     # Instantiate GRPO trainer
     #########################
 
+    # reward model
+    checkpoint = torch.load(script_args.reward_model_path)
+    reward_model = RewardModel(state_dim=17, action_dim=6)
+    reward_model.load_state_dict(checkpoint["model_state_dict"])
+    reward_model.state_mean = checkpoint["state_mean"]
+    reward_model.state_std = checkpoint["state_std"]
+    reward_model.action_mean = checkpoint["action_mean"]
+    reward_model.action_std = checkpoint["action_std"]
+    reward_model.reward_mean = checkpoint["reward_mean"]
+    reward_model.reward_std = checkpoint["reward_std"]
+    reward_model.eval()
+    reward_model = reward_model.to("cuda")
+
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
         reward_funcs=[
             format_reward_func_constructor(
                 log_dir=training_args.output_dir, num_action_dim=6, add_action_tag=True
+            ),
+            reward_model_func_constructor(
+                num_action_dim=6,
+                reward_model=reward_model,
             ),
         ],  # [format_reward_func, equation_reward_func],
         args=training_args,
@@ -206,8 +236,8 @@ def grpo_function(
 
     # Train the model
     logger.info(
-        f'*** Starting training {datetime.now().strftime("%Y-%m-%d %H:%M:%S")} for '
-        f'{training_args.num_train_epochs} epochs***'
+        f"*** Starting training {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} for "
+        f"{training_args.num_train_epochs} epochs***"
     )
     train_result = trainer.train()
     # Log and save metrics
