@@ -23,7 +23,7 @@ class Args:
     verbose: bool = True  # Print detailed information during evaluation
     log_level: str = "INFO"  # Logging level
     model: str = "llama-3.3-70b-instruct"  # LLM model
-    temperature: float = 0.0  # Temperature for sampling
+    temperature: float = 0.3  # Temperature for sampling
     prediction_horizon: int = 200  # Prediction horizon
     logit_bias: float = 0.0  # Logit bias
     good_tokens: Optional[str] = None  # Good tokens for LLM
@@ -32,6 +32,7 @@ class Args:
     freq_log_action: int = 250  # Frequency to log action
     n_examples: int = 3  # Number of examples for LLM policy system prompt
     system_prompt: bool = True  # Use system prompt
+    use_vllm: bool = False
 
 
 def evaluate_llm_policy(
@@ -71,7 +72,7 @@ def evaluate_llm_policy(
     llm_policy = LLMPolicy(
         api_url=args.api_url,
         api_key=args.api_key,
-        model=args.model,
+        model_name=args.model,
         temperature=args.temperature,
         prediction_horizon=args.prediction_horizon,
         logit_bias=args.logit_bias,
@@ -79,6 +80,7 @@ def evaluate_llm_policy(
         env_name=args.env_id,
         examples=examples if args.n_examples else None,
         system_prompt=args.system_prompt,
+        use_vllm=args.use_vllm,
     )
 
     # Log the system prompt from LLM policy
