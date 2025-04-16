@@ -1,14 +1,19 @@
 import logging
 from typing import List, Optional, Dict
 import re
+import torch
 from openai import OpenAI
+from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
+from rlft4rl.utils import trl_generate_completions
 
 
 def repeat_on_error(
-    client: OpenAI,
     prompt: str,
     system_prompt: str,
-    model: str,
+    model_name: str,
+    model: Optional[AutoModelForCausalLM] = None,
+    tokenizer: Optional[AutoTokenizer] = None,
+    client: Optional[OpenAI] = None,
     temperature: float = 0.0,
     max_tokens: int = 75,
     n_action_dim: int = 6,
@@ -23,21 +28,42 @@ def repeat_on_error(
     if system_prompt:
         messages.append({"content": system_prompt, "role": "system"})
     messages.append({"content": prompt, "role": "user"})
+    messages.append({"content": "<action>", "role": "assistant"})
 
     count: int = 0
     n_try_gen: List[int] = []
 
     while True:
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            temperature=temperature,
-            stream=False,
-            max_tokens=max_tokens,
-            logit_bias={id: logit_bias if logit_bias else 0 for id in good_tokens},
-        )
+        if client is not None:
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                stream=False,
+                max_tokens=max_tokens,
+                logit_bias={id: logit_bias if logit_bias else 0 for id in good_tokens},
+            )
+            raw_response = response.choices[0].message.content
+        else:
+            generation_config = GenerationConfig(
+                max_new_tokens=100,
+                do_sample=True,
+                temperature=0.9,
+                num_return_sequences=1,
+                pad_token_id=2,
+            )
+            device = "cuda" if torch.cuda.is_available() else "cpu"
+            model.to(device)
 
-        raw_response = response.choices[0].message.content
+            completions, _ = trl_generate_completions(
+                model,
+                [{"prompt": messages}],
+                tokenizer,
+                generation_config,
+                device,
+            )
+            raw_response = completions[0]
+
         logger.debug(f"raw_response: {raw_response}")
 
         match = re.search(regex, raw_response, re.DOTALL)
