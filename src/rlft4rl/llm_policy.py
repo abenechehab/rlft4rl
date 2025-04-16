@@ -2,9 +2,9 @@ import logging
 from typing import List, Optional, Dict
 import numpy as np
 from openai import OpenAI
+from transformers import AutoModelForCausalLM, AutoTokenizer
 from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS, SHORT_SYSTEM_PROMPT_HALFCHEETAH
 from rlft4rl.sampling import repeat_on_error
-from transformers import AutoTokenizer
 
 
 class LLMPolicy:
@@ -12,7 +12,7 @@ class LLMPolicy:
         self,
         api_url,
         api_key,
-        model,
+        model_name,
         temperature,
         prediction_horizon,
         logit_bias,
@@ -21,12 +21,21 @@ class LLMPolicy:
         tol_repeat_gen: int = 10,
         examples: Optional[Dict] = None,
         system_prompt: bool = True,
+        use_vllm: bool = False,
     ):
-        self.client = OpenAI(
-            base_url=api_url,
-            api_key=api_key,
-        )
-        self.model = model
+        if use_vllm:
+            self.client = OpenAI(
+                base_url=api_url,
+                api_key=api_key,
+            )
+            self.model = None
+        else:
+            self.client = None
+            self.model = AutoModelForCausalLM.from_pretrained(model_name)
+
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
+
+        self.model_name = model_name
         self.temperature = temperature
         self.prediction_horizon = prediction_horizon
         self.logit_bias = logit_bias
@@ -41,7 +50,9 @@ class LLMPolicy:
         self.n_try_gen: List[int] = []
         self.bool_system_prompt = system_prompt
 
-    def init_prompt_template(self, env_name: str, examples: Optional[Dict] = None, use_short: bool = True):
+    def init_prompt_template(
+        self, env_name: str, examples: Optional[Dict] = None, use_short: bool = True
+    ):
         if use_short:
             self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
         else:
@@ -57,7 +68,7 @@ class LLMPolicy:
 
             if examples:
                 for i, (_, val) in enumerate(examples.items()):
-                    self.system_prompt += f"""Example {i+1}:
+                    self.system_prompt += f"""Example {i + 1}:
                     <observation> {val["obs"]} </observation>
                     <action> {val["action"]} </action>
 
@@ -76,32 +87,33 @@ class LLMPolicy:
         ex_action = (
             "<action>-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
         )
-        tokenizer = AutoTokenizer.from_pretrained(self.model)
-        max_tokens = len(tokenizer.tokenize(ex_action))
+        max_tokens = len(self.tokenizer.tokenize(ex_action))
 
         logger.debug(f"max_tokens: {max_tokens}")
 
         tokens = set()
         for i in range(1000):
-            toks = tokenizer.tokenize(str(i))
+            toks = self.tokenizer.tokenize(str(i))
             tokens.update(toks)
-        num_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # number tokens
+        num_tk = self.tokenizer.convert_tokens_to_ids(list(tokens))  # number tokens
         tokens = set()
-        tokens.update(tokenizer.tokenize("."))
-        tokens.update(tokenizer.tokenize("-"))
-        symbol_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # symbol tokens
+        tokens.update(self.tokenizer.tokenize("."))
+        tokens.update(self.tokenizer.tokenize("-"))
+        symbol_tk = self.tokenizer.convert_tokens_to_ids(list(tokens))  # symbol tokens
         tokens = set()
-        tokens.update(tokenizer.tokenize("<action></action>"))
-        tag_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # tag tokens
+        tokens.update(self.tokenizer.tokenize("<action></action>"))
+        tag_tk = self.tokenizer.convert_tokens_to_ids(list(tokens))  # tag tokens
         tokens = set()
-        tokens.update(tokenizer.tokenize(","))
-        sep_tk = tokenizer.convert_tokens_to_ids(list(tokens))  # separator tokens
+        tokens.update(self.tokenizer.tokenize(","))
+        sep_tk = self.tokenizer.convert_tokens_to_ids(list(tokens))  # separator tokens
 
         action, n_try_gen = repeat_on_error(
+            model_name=self.model_name,
             client=self.client,
             prompt=prompt,
             system_prompt=self.system_prompt if self.bool_system_prompt else None,
             model=self.model,
+            tokenizer=self.tokenizer,
             n_action_dim=6,  # TODO: set this automatically
             temperature=self.temperature,
             max_tokens=max_tokens,
