@@ -94,3 +94,35 @@ def set_seed_everywhere(seed):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def trl_generate_completions(
+    model, inputs, processing_class, generation_config, device
+):
+    prompts_text = [
+        processing_class.apply_chat_template(
+            example["prompt"], tokenize=False, add_generation_prompt=True
+        ).split("<|im_start|>assistant\n<action>")[0]
+        + "<|im_start|>assistant\n<action>"
+        for example in inputs
+    ]
+    prompt_inputs = processing_class(
+        prompts_text,
+        return_tensors="pt",
+        padding=True,
+        padding_side="left",
+        add_special_tokens=False,
+    ).to(device)
+
+    with torch.no_grad():
+        prompt_completion_ids = model.generate(
+            **prompt_inputs, generation_config=generation_config
+        )
+
+    prompt_length = prompt_inputs["input_ids"].size(1)
+    completion_ids = prompt_completion_ids[:, prompt_length:]
+    completions = processing_class.batch_decode(
+        completion_ids, skip_special_tokens=True
+    )
+
+    return completions, prompts_text
