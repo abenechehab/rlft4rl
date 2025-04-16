@@ -271,7 +271,32 @@ def train_reward_model(
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
-            torch.save(reward_model.state_dict(), log_dir + f"/rw{version}.pt")
+            torch.save(
+                {
+                    "model_state_dict": reward_model.module.state_dict()
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.state_dict(),
+                    "state_mean": reward_model.module.state_mean
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.state_mean,
+                    "state_std": reward_model.module.state_std
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.state_std,
+                    "action_mean": reward_model.module.action_mean
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.action_mean,
+                    "action_std": reward_model.module.action_std
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.action_std,
+                    "reward_mean": reward_model.module.reward_mean
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.reward_mean,
+                    "reward_std": reward_model.module.reward_std
+                    if isinstance(reward_model, nn.DataParallel)
+                    else reward_model.reward_std,
+                },
+                log_dir + f"/rw{version}.pt",
+            )
         else:
             patience_counter += 1
             if patience_counter >= patience:

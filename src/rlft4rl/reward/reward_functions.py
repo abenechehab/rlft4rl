@@ -3,6 +3,8 @@ from pathlib import Path
 import random
 import re
 
+import torch
+
 
 def debug_fn(completions, observation, action, **kwargs):
     rewards = []
@@ -69,6 +71,54 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
         return rewards
 
     return format_reward_func
+
+
+def reward_model_func_constructor(num_action_dim, reward_model):
+    def reward_model_func(prompts, completions, observation, action, **kwargs):
+        """
+        Format: <action>...</action>
+        Args:
+            completions (list[str]): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct
+        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        rewards = []
+
+        for i, completion in enumerate(completions):
+            response = completion[0]["content"]
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            reward = 0.0
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # Extract the numbers inside the <action> tag
+                numbers_str = match_values.group(1)
+                # Split the numbers by commas, remove any extra spaces, and count the
+                # number of values
+                numbers = [num.strip() for num in numbers_str.split(",")]
+
+                # Check if the number of values matches the expected num_action_dim
+                if len(numbers) == num_action_dim:
+                    llm_action = torch.tensor([float(act) for act in numbers]).to(
+                        "cuda"
+                    )
+                    obs = torch.tensor(observation[i]).to("cuda")
+
+                    reward += reward_model(
+                        obs.reshape((1, -1)), llm_action.reshape((1, -1))
+                    ).item()
+
+            rewards.append(reward)
+            # except Exception:
+            #     rewards.append(0.0)
+        return rewards
+
+    return reward_model_func
 
 
 def equation_reward_func(completions, target, nums, **kwargs):
