@@ -26,6 +26,13 @@ from trl import (
 from datasets import load_dataset
 
 from rlft4rl.utils import setup_logger, set_seed_everywhere
+from rlft4rl.prompts import (
+    OBS_START,
+    OBS_END,
+    ACTION_START,
+    ACTION_END,
+    SHORT_SYSTEM_PROMPT_HALFCHEETAH,
+)
 
 os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"
 
@@ -105,27 +112,11 @@ def train_function(
         f"features: {train_dataset.features}"
     )
 
-    # add special tokens
-    obs_start = "<observation>"
-    obs_end = "</observation>"
-    action_start = "<action>"
-    action_end = "</action>"
-
-    system_prompt = f"""You are the controller for a HalfCheetah robot in a physics
-    simulation. The HalfCheetah is a 2-dimensional robot consisting of 9 body parts
-    and 8 connecting joints. You will receive the observation between {obs_start}
-    and {obs_end} tags, which contains the robot's state. Your task is to generate an
-     action between {action_start} and {action_end} tags. The action is a
-    comma-separated list of 6 numbers, each representing the torque applied to the
-    robot's joints (back thigh, back shin, back foot, front thigh, front shin, front
-    foot). Example output: {action_start}-0.39555,-0.66661,-0.36855,0.91655,
-    #-0.81651,1.16655{action_end}."""
-
     # Format datasets
     train_dataset = train_dataset.map(
         lambda x: {
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": SHORT_SYSTEM_PROMPT_HALFCHEETAH},
                 {"role": "user", "content": x["observation"]},
                 {"role": "assistant", "content": x["action"]},
             ],
@@ -135,7 +126,7 @@ def train_function(
     eval_dataset = eval_dataset.map(
         lambda x: {
             "messages": [
-                {"role": "system", "content": system_prompt},
+                {"role": "system", "content": SHORT_SYSTEM_PROMPT_HALFCHEETAH},
                 {"role": "user", "content": x["observation"]},
                 {"role": "assistant", "content": x["action"]},
             ],
@@ -190,7 +181,7 @@ def train_function(
     # load the model with our kwargs
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path, **model_kwargs
-    )
+    ).to("cuda")
 
     training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
 
@@ -203,13 +194,13 @@ def train_function(
 
     # add special tokens
     num_added_toks = tokenizer.add_tokens(
-        [obs_start, obs_end, action_start, action_end],
+        [OBS_START, OBS_END, ACTION_START, ACTION_END],
         special_tokens=True,
     )
     model.resize_token_embeddings(len(tokenizer))
     # Set action_end as the EOS token
-    tokenizer.eos_token = action_end
-    tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(action_end)
+    # tokenizer.eos_token = ACTION_END
+    # tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(ACTION_END)
 
     logger.info(f"*** num_added_toks {num_added_toks} ***")
 
