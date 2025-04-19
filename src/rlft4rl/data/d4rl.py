@@ -21,7 +21,7 @@ class Args:
     n_episodes: int = 5  # Number of sampling iterations
     verbose: bool = True  # Print detailed information
     log_level: str = "INFO"  # Logging level
-    system_prompt: bool = True  # Use system prompt
+    system_prompt: bool = False  # Use system prompt
     chat_template: bool = False  # Use chat template
 
 
