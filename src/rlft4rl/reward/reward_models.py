@@ -18,16 +18,16 @@ from rlft4rl.utils import setup_logger, set_seed_everywhere
 
 @dataclass
 class Args:
-    dataset_name: str = "mujoco/halfcheetah/expert-v0"
+    dataset_name: str = "mujoco/halfcheetah/medium-v0"
     hidden_dim: int = 256
     batch_size: int = 2048
     lr: float = 1e-3
     weight_decay: float = 1e-4
-    epochs: int = 100
+    epochs: int = 300
     patience: int = 10
     val_split: float = 0.1
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
-    log_dir: str = "models/reward_models/halfcheetah_expert"
+    log_dir: str = "models/reward_models/halfcheetah_medium"
     normalize: bool = True
     dropout_rate: float = 0.1
     use_data_parallel: bool = True  # Add a flag to control DataParallel usage
