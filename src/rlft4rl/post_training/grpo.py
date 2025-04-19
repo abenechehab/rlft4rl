@@ -20,6 +20,7 @@ from rlft4rl.utils import setup_logger, set_seed_everywhere
 from rlft4rl.reward.reward_functions import (
     format_reward_func_constructor,
     reward_model_func_constructor,
+    control_amp_reward_func_constructor,
 )  # ,format_reward_func, equation_reward_func
 from rlft4rl.reward.reward_models import RewardModel
 from rlft4rl.prompts import (
@@ -212,6 +213,7 @@ def grpo_function(
     reward_model.eval()
     reward_model = reward_model.to("cuda")
 
+    # TODO: set num_action_dim automatically
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
@@ -223,6 +225,7 @@ def grpo_function(
                 num_action_dim=6,
                 reward_model=reward_model,
             ),
+            control_amp_reward_func_constructor(num_action_dim=6),
         ],  # [format_reward_func, equation_reward_func],
         args=training_args,
         train_dataset=train_dataset,
