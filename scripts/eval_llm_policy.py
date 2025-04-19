@@ -33,6 +33,7 @@ class Args:
     n_examples: int = 3  # Number of examples for LLM policy system prompt
     system_prompt: bool = True  # Use system prompt
     use_vllm: bool = False
+    tol_repeat_gen: int = 10  # Tolerance for repeated generations
 
 
 def evaluate_llm_policy(
@@ -81,6 +82,7 @@ def evaluate_llm_policy(
         examples=examples if args.n_examples else None,
         system_prompt=args.system_prompt,
         use_vllm=args.use_vllm,
+        tol_repeat_gen=args.tol_repeat_gen,
     )
 
     # Log the system prompt from LLM policy
