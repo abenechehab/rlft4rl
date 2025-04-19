@@ -70,6 +70,8 @@ def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]
         episode_returns.append(env.return_queue[-1])
         episode_lengths.append(env.length_queue[-1])
 
+    logger.info(f"all episodes return: {episode_returns}")
+
     # Calculate statistics
     mean_return = np.mean(episode_returns)
     std_return = np.std(episode_returns)
