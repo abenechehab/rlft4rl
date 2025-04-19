@@ -26,3 +26,5 @@ __pycache__
 
 *.lock
 uv.lock
+
+unsloth_compiled_cache
