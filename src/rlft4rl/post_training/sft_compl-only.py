@@ -123,7 +123,10 @@ def train_function(
         tokenizer.pad_token = tokenizer.eos_token
     # if we use peft we need to make sure we use a chat template that is not using
     # special tokens as by default embedding layers will not be trainable
-    tokenizer.padding_side = "right"  # to prevent warnings
+    if "Qwen" in model_args.model_name_or_path:
+        tokenizer.padding_side = "left"  # to prevent warnings
+    else:
+        tokenizer.padding_side = "right"
 
     #########################
     # Load pretrained model
@@ -161,7 +164,7 @@ def train_function(
     # load the model with our kwargs
     model = AutoModelForCausalLM.from_pretrained(
         model_args.model_name_or_path, **model_kwargs
-    ).to('cuda')
+    ).to("cuda")
 
     training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
 
@@ -179,10 +182,11 @@ def train_function(
     )
     model.resize_token_embeddings(len(tokenizer))
     # Set action_end as the EOS token
-    # tokenizer.eos_token = ACTION_END
-    # tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(ACTION_END)
+    tokenizer.eos_token = ACTION_END
+    tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(ACTION_END)
 
     logger.info(f"*** num_added_toks {num_added_toks} ***")
+    logger.info(f"*** model {model} ***")
 
     ##################################
     # Completion only data collator
@@ -190,24 +194,31 @@ def train_function(
     # Format datasets
     train_dataset = train_dataset.map(
         lambda x: {
-            "text": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n ### Controller: {x['action']}"
+            "text": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n### Controller: {x['action']}"
         }
     )
 
     eval_dataset = eval_dataset.map(
-        lambda x: {"text": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n ### Controller: {x['action']}"}
+        lambda x: {
+            "text": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n### Controller: {x['action']}"
+        }
     )
 
     # Format the dataset to be used with the data collator
     def formatting_prompts_func(example):
         output_texts = []
         for i in range(len(example["observation"])):
-            text = f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + example['observation'][i]}\n ### Controller: {example['action'][i]}"
+            text = f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + example['observation'][i]}\n### Controller: {example['action'][i]}"
             output_texts.append(text)
         return output_texts
 
-    response_template = " ### Controller:"
-    collator = DataCollatorForCompletionOnlyLM(response_template, tokenizer=tokenizer)
+    response_template = "### Controller:"
+    instruction_template = "### User:"
+    collator = DataCollatorForCompletionOnlyLM(
+        response_template=response_template,
+        instruction_template=instruction_template,
+        tokenizer=tokenizer,
+    )
     ###################################
 
     ########################
@@ -215,7 +226,7 @@ def train_function(
     ########################
     trainer = SFTTrainer(
         model=model,
-        # processing_class=tokenizer,
+        processing_class=tokenizer,
         # formatting_func=formatting_prompts_func,
         data_collator=collator,
         args=training_args,
