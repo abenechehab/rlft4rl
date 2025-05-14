@@ -164,7 +164,7 @@ def main(args: Args):
     set_seed_everywhere(seed=args.seed)
 
     # Setup logger
-    model_name = args.model.split("/final_model")[0].split("/")[0].split("--")[-1]
+    model_name = args.model.split("/")[1]
     logger, _, ts_writer = setup_logger(
         logger_name="LLMPolicy",
         log_level=args.log_level,
