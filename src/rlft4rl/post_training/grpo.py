@@ -21,6 +21,7 @@ from rlft4rl.reward.reward_functions import (
     format_reward_func_constructor,
     reward_model_func_constructor,
     control_amp_reward_func_constructor,
+    BC_reward_func_constructor
 )  # ,format_reward_func, equation_reward_func
 from rlft4rl.reward.reward_models import RewardModel
 from rlft4rl.prompts import (
@@ -88,8 +89,10 @@ def grpo_function(
         # truncation=True,
         # padding=True,
     )
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+
+    # if tokenizer.pad_token is None:
+    #     tokenizer.pad_token = tokenizer.eos_token
+
     # if we use peft we need to make sure we use a chat template that is not using
     # special tokens as by default embedding layers will not be trainable
     # tokenizer.padding_side = "left"  # to prevent warnings
@@ -132,8 +135,6 @@ def grpo_function(
         model_args.model_name_or_path, **model_kwargs
     ).to("cuda")
 
-    training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
-
     # for peft we need to make sure we use a chat template that is not using special
     # tokens as by default embedding layers will not be trainable
 
@@ -142,12 +143,19 @@ def grpo_function(
 
     # add special tokens
 
-    num_added_toks = tokenizer.add_tokens(
-        [OBS_START, OBS_END, ACTION_START, ACTION_END],
-        special_tokens=True,
-    )
-    model.resize_token_embeddings(len(tokenizer))
-    logger.info(f"*** num_added_toks {num_added_toks} ***")
+    # num_added_toks = tokenizer.add_tokens(
+    #     [OBS_START, OBS_END, ACTION_START, ACTION_END],
+    #     special_tokens=True,
+    # )
+
+    # training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
+
+    # model.resize_token_embeddings(len(tokenizer))
+    # logger.info(f"*** num_added_toks {num_added_toks} ***")
+
+    logger.info(f"*** model {model} ***")
+
+    training_args.distributed_state.wait_for_everyone()  # wait for all procs to load
 
     ###############
     # Load datasets
@@ -176,11 +184,12 @@ def grpo_function(
 
     dataset = dataset.map(
         lambda x: {
-            "prompt": [
-                {"role": "system", "content": SHORT_SYSTEM_PROMPT_HALFCHEETAH},
-                {"role": "user", "content": x["observation"]},
-                {"role": "assistant", "content": "<action>"},
-            ],
+            # "prompt": [
+            #     {"role": "system", "content": SHORT_SYSTEM_PROMPT_HALFCHEETAH},
+            #     {"role": "user", "content": x["observation"]},
+            #     {"role": "assistant", "content": "<action>"},
+            # ],
+            "prompt": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n ### Controller: {ACTION_START}",
             "observation": convert_to_array(
                 s=x["observation"].split(OBS_START)[-1].split(OBS_END)[0]
             ),
@@ -221,12 +230,13 @@ def grpo_function(
             format_reward_func_constructor(
                 log_dir=training_args.output_dir, num_action_dim=6, add_action_tag=True
             ),
-            reward_model_func_constructor(
-                num_action_dim=6,
-                reward_model=reward_model,
-            ),
-            control_amp_reward_func_constructor(num_action_dim=6),
-        ],  # [format_reward_func, equation_reward_func],
+            # reward_model_func_constructor(
+            #     num_action_dim=6,
+            #     reward_model=reward_model,
+            # ),
+            # control_amp_reward_func_constructor(num_action_dim=6),
+            BC_reward_func_constructor(num_action_dim=6),
+        ],
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=test_dataset,
