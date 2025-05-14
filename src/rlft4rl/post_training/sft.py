@@ -143,7 +143,10 @@ def train_function(
         tokenizer.pad_token = tokenizer.eos_token
     # if we use peft we need to make sure we use a chat template that is not using
     # special tokens as by default embedding layers will not be trainable
-    tokenizer.padding_side = "right"  # to prevent warnings
+    if "Qwen" in model_args.model_name_or_path:
+        tokenizer.padding_side = "left"  # to prevent warnings
+    else:
+        tokenizer.padding_side = "right"
 
     #########################
     # Load pretrained model
@@ -199,8 +202,8 @@ def train_function(
     )
     model.resize_token_embeddings(len(tokenizer))
     # Set action_end as the EOS token
-    # tokenizer.eos_token = ACTION_END
-    # tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(ACTION_END)
+    tokenizer.eos_token = ACTION_END
+    tokenizer.eos_token_id = tokenizer.convert_tokens_to_ids(ACTION_END)
 
     logger.info(f"*** num_added_toks {num_added_toks} ***")
 
@@ -290,7 +293,7 @@ def train_function(
     if script_args.early_stopping_callback:
         trainer.add_callback(early_stopping_callback)
 
-    logger.info(f"*** Starting training for {training_args.num_train_epochs} epochs***")
+    logger.info(f"***Starting training for {training_args.num_train_epochs} epochs***")
     train_result = trainer.train()
     # log metrics
     metrics = train_result.metrics
