@@ -3,6 +3,7 @@ from pathlib import Path
 import random
 import re
 
+import numpy as np
 import torch
 
 
@@ -15,7 +16,9 @@ def debug_fn(completions, observation, action, **kwargs):
     return rewards
 
 
-def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False):
+def format_reward_func_constructor(
+    log_dir, num_action_dim, add_action_tag=False, completion_only=True
+):
     def format_reward_func(prompts, completions, observation, action, **kwargs):
         """
         Format: <action>...</action>
@@ -27,25 +30,24 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
         """
         # Check if the format is correct
         regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
-        regex_end = r"</action>$"
+        # regex_end = r"</action>$"
         rewards = []
 
         for completion in completions:
-            response = completion[0]["content"]
+            response = completion if completion_only else completion[0]["content"]
 
             if add_action_tag:
                 response = "<action>" + response
 
             # try:
             if random.random() < 0.1:  # 1% chance to write samples into a file
-                os.makedirs("completion_samples", exist_ok=True)
                 log_file = Path(log_dir) / "completion_samples.txt"
                 with open(log_file, "a") as f:
                     f.write("\n\n==============\n")
                     f.write(response)
 
             match_values = re.search(regex_values, response, re.DOTALL)
-            match_end = re.search(regex_end, response, re.DOTALL)
+            # match_end = re.search(regex_end, response, re.DOTALL)
             reward = 0.0
             # if the format is not correct, reward is 0
             if match_values is None:
@@ -61,9 +63,16 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
                 # Check if the number of values matches the expected num_action_dim
                 if len(numbers) == num_action_dim:
                     reward += 1.0
+                    # completion size reward
+                    reward -= max(
+                        (len(response) - len(numbers_str) - len("<action>")) / 10, 0
+                    )
+                else:
+                    reward -= 10.0
 
-                if match_end is not None:
-                    reward += 1.0
+                # Check if the </action> tag is at the end of the response
+                # if match_end is not None:
+                #     reward += 1.0
 
             rewards.append(reward)
             # except Exception:
@@ -73,7 +82,7 @@ def format_reward_func_constructor(log_dir, num_action_dim, add_action_tag=False
     return format_reward_func
 
 
-def reward_model_func_constructor(num_action_dim, reward_model):
+def reward_model_func_constructor(num_action_dim, reward_model, completion_only=True):
     def reward_model_func(prompts, completions, observation, action, **kwargs):
         """
         Format: <action>...</action>
@@ -88,13 +97,13 @@ def reward_model_func_constructor(num_action_dim, reward_model):
         rewards = []
 
         for i, completion in enumerate(completions):
-            response = completion[0]["content"]
+            response = completion if completion_only else completion[0]["content"]
 
             match_values = re.search(regex_values, response, re.DOTALL)
             reward = 0.0
             # if the format is not correct, reward is 0
             if match_values is None:
-                reward -= 10.0
+                reward -= 3.15  # -3.15 is the min reward across the rw training dataset
             else:
                 # Extract the numbers inside the <action> tag
                 numbers_str = match_values.group(1)
@@ -112,6 +121,8 @@ def reward_model_func_constructor(num_action_dim, reward_model):
                     reward += reward_model(
                         obs.reshape((1, -1)), llm_action.reshape((1, -1))
                     ).item()
+                else:
+                    reward -= 3.15
 
             rewards.append(reward)
             # except Exception:
@@ -121,7 +132,7 @@ def reward_model_func_constructor(num_action_dim, reward_model):
     return reward_model_func
 
 
-def control_amp_reward_func_constructor(num_action_dim):
+def control_amp_reward_func_constructor(num_action_dim, completion_only=True):
     def control_amp_reward_func(prompts, completions, observation, action, **kwargs):
         """
         Format: <action>...</action>
@@ -136,7 +147,7 @@ def control_amp_reward_func_constructor(num_action_dim):
         rewards = []
 
         for _, completion in enumerate(completions):
-            response = completion[0]["content"]
+            response = completion if completion_only else completion[0]["content"]
 
             match_values = re.search(regex_values, response, re.DOTALL)
             reward = 0.0
@@ -162,6 +173,50 @@ def control_amp_reward_func_constructor(num_action_dim):
         return rewards
 
     return control_amp_reward_func
+
+
+def BC_reward_func_constructor(num_action_dim, completion_only=True):
+    def BC_reward_func(prompts, completions, observation, action, **kwargs):
+        """
+        Format: <action>...</action>
+        Args:
+            completions (list[str]): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct
+        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        rewards = []
+
+        for _, completion in enumerate(completions):
+            response = completion if completion_only else completion[0]["content"]
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            reward = 0.0
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # Extract the numbers inside the <action> tag
+                numbers_str = match_values.group(1)
+                # Split the numbers by commas, remove any extra spaces, and count the
+                # number of values
+                numbers = [num.strip() for num in numbers_str.split(",")]
+
+                # Check if the number of values matches the expected num_action_dim
+                if len(numbers) == num_action_dim:
+                    llm_action = np.array([float(act) for act in numbers])
+                    action = np.array(action)
+
+                    reward += -np.linalg.norm(llm_action-action, ord=2)
+
+            rewards.append(reward)
+            # except Exception:
+            #     rewards.append(0.0)
+        return rewards
+
+    return BC_reward_func
 
 
 def equation_reward_func(completions, target, nums, **kwargs):
