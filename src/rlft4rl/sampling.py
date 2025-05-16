@@ -5,6 +5,7 @@ import torch
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer, GenerationConfig
 from rlft4rl.utils import trl_generate_completions
+from rlft4rl.prompts import ACTION_START
 
 
 def repeat_on_error(
@@ -24,11 +25,13 @@ def repeat_on_error(
 ):
     regex = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
 
-    messages = []
-    if system_prompt:
-        messages.append({"content": system_prompt, "role": "system"})
-    messages.append({"content": prompt, "role": "user"})
-    messages.append({"content": "<action>", "role": "assistant"})
+    # messages = []
+    # if system_prompt:
+    #     messages.append({"content": system_prompt, "role": "system"})
+    # messages.append({"content": prompt, "role": "user"})
+    # messages.append({"content": "<action>", "role": "assistant"})
+
+    messages = f"### User: {system_prompt + prompt}\n ### Controller: {ACTION_START}"
 
     count: int = 0
     n_try_gen: List[int] = []
