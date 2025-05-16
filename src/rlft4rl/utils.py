@@ -99,18 +99,21 @@ def set_seed_everywhere(seed):
 def trl_generate_completions(
     model, inputs, processing_class, generation_config, device
 ):
-    prompts_text = [
-        processing_class.apply_chat_template(
-            example["prompt"], tokenize=False, add_generation_prompt=True
-        ).split("<|im_start|>assistant\n<action>")[0]
-        + "<|im_start|>assistant\n<action>"
-        for example in inputs
-    ]
+    # prompts_text = [
+    #     processing_class.apply_chat_template(
+    #         example["prompt"], tokenize=False, add_generation_prompt=True
+    #     ).split("<|im_start|>assistant\n<action>")[0]
+    #     + "<|im_start|>assistant\n<action>"
+    #     for example in inputs
+    # ]
+
+    prompts_text = [example["prompt"] for example in inputs]
+
     prompt_inputs = processing_class(
         prompts_text,
         return_tensors="pt",
-        padding=True,
-        padding_side="left",
+        # padding=True,
+        # padding_side="left",
         add_special_tokens=False,
     ).to(device)
 
