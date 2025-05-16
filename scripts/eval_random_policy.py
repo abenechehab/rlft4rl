@@ -55,6 +55,7 @@ def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]
         while not done:
             # Random action
             action = env.action_space.sample()
+            # action = np.zeros_like(action)  # Zero action for random policy
 
             # Step environment
             _, _, terminated, truncated, _ = env.step(action)
