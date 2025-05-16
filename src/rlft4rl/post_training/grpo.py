@@ -18,6 +18,7 @@ from trl import GRPOConfig, GRPOTrainer, get_peft_config, ModelConfig, TrlParser
 
 from rlft4rl.utils import setup_logger, set_seed_everywhere
 from rlft4rl.reward.reward_functions import (
+    log_rew_func_constructor,
     format_reward_func_constructor,
     reward_model_func_constructor,
     control_amp_reward_func_constructor,
@@ -227,9 +228,12 @@ def grpo_function(
         model=model,
         processing_class=tokenizer,
         reward_funcs=[
-            format_reward_func_constructor(
-                log_dir=training_args.output_dir, num_action_dim=6, add_action_tag=True
+            log_rew_func_constructor(
+                log_dir=training_args.output_dir, add_action_tag=True
             ),
+            # format_reward_func_constructor(
+            #     log_dir=training_args.output_dir, num_action_dim=6, add_action_tag=True
+            # ),
             # reward_model_func_constructor(
             #     num_action_dim=6,
             #     reward_model=reward_model,
