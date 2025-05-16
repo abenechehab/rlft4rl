@@ -15,6 +15,36 @@ def debug_fn(completions, observation, action, **kwargs):
         rewards.append(0.0)
     return rewards
 
+def log_rew_func_constructor(
+    log_dir, add_action_tag=False, completion_only=True
+):
+    def log_responses_dummy_reward_func(prompts, completions, observation, action, **kwargs):
+        """
+        Format: <action>...</action>
+        Args:
+            completions (list[str]): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        rewards = []
+
+        for completion in completions:
+            response = completion if completion_only else completion[0]["content"]
+            if add_action_tag:
+                response = "<action>" + response
+
+            # try:
+            if random.random() < 0.1:  # 1% chance to write samples into a file
+                log_file = Path(log_dir) / "completion_samples.txt"
+                with open(log_file, "a") as f:
+                    f.write("\n\n==============\n")
+                    f.write(response)
+
+            rewards.append(0.0)
+        return rewards
+    return log_responses_dummy_reward_func
+
 
 def format_reward_func_constructor(
     log_dir, num_action_dim, add_action_tag=False, completion_only=True
@@ -64,7 +94,7 @@ def format_reward_func_constructor(
                 if len(numbers) == num_action_dim:
                     reward += 1.0
                     # completion size reward
-                    reward -= max(
+                    reward -=  max(
                         (len(response) - len(numbers_str) - len("<action>")) / 10, 0
                     )
                 else:
@@ -189,7 +219,7 @@ def BC_reward_func_constructor(num_action_dim, completion_only=True):
         regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
         rewards = []
 
-        for _, completion in enumerate(completions):
+        for index, completion in enumerate(completions):
             response = completion if completion_only else completion[0]["content"]
 
             match_values = re.search(regex_values, response, re.DOTALL)
@@ -207,13 +237,13 @@ def BC_reward_func_constructor(num_action_dim, completion_only=True):
                 # Check if the number of values matches the expected num_action_dim
                 if len(numbers) == num_action_dim:
                     llm_action = np.array([float(act) for act in numbers])
-                    action = np.array(action)
+                    current_action = np.array(action)[index]
 
-                    reward += -np.linalg.norm(llm_action-action, ord=2)
+                    reward += -np.linalg.norm(llm_action - current_action, ord=2)
+                else:
+                    reward -= 10.0
 
             rewards.append(reward)
-            # except Exception:
-            #     rewards.append(0.0)
         return rewards
 
     return BC_reward_func
