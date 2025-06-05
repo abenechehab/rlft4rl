@@ -22,6 +22,7 @@ class LLMPolicy:
         examples: Optional[Dict] = None,
         system_prompt: bool = True,
         use_vllm: bool = False,
+        device: str = "cuda:0",
     ):
         if use_vllm:
             self.client = OpenAI(
@@ -31,7 +32,7 @@ class LLMPolicy:
             self.model = None
         else:
             self.client = None
-            self.model = AutoModelForCausalLM.from_pretrained(model_name)
+            self.model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 
