@@ -20,8 +20,7 @@ from rlft4rl.utils import setup_logger, set_seed_everywhere
 from rlft4rl.reward.reward_functions import (
     log_rew_func_constructor,
     format_reward_func_constructor,
-    reward_model_func_constructor,
-    control_amp_reward_func_constructor,
+    # reward_model_func_constructor,
     BC_reward_func_constructor
 )  # ,format_reward_func, equation_reward_func
 from rlft4rl.reward.reward_models import RewardModel
@@ -190,7 +189,7 @@ def grpo_function(
             #     {"role": "user", "content": x["observation"]},
             #     {"role": "assistant", "content": "<action>"},
             # ],
-            "prompt": f"### User: {SHORT_SYSTEM_PROMPT_HALFCHEETAH + x['observation']}\n ### Controller: {ACTION_START}",
+            "prompt": f"### Instructions: {SHORT_SYSTEM_PROMPT_HALFCHEETAH}\n ### User: {x['observation']}\n ### Controller: {ACTION_START}",
             "observation": convert_to_array(
                 s=x["observation"].split(OBS_START)[-1].split(OBS_END)[0]
             ),
@@ -206,9 +205,9 @@ def grpo_function(
     train_dataset = train_test_split["train"]
     test_dataset = train_test_split["test"]
 
-    #########################
+    ##########################
     # Instantiate GRPO trainer
-    #########################
+    ##########################
 
     # reward model
     checkpoint = torch.load(script_args.reward_model_path)
@@ -232,7 +231,7 @@ def grpo_function(
                 log_dir=training_args.output_dir, add_action_tag=True
             ),
             # format_reward_func_constructor(
-            #     log_dir=training_args.output_dir, num_action_dim=6, add_action_tag=True
+            #     num_action_dim=6, # add_action_tag=True
             # ),
             # reward_model_func_constructor(
             #     num_action_dim=6,
@@ -272,6 +271,10 @@ def grpo_function(
 
     logger.info("*** Save model ***")
     trainer.model.config.use_cache = True
+    # with zero.GatheredParameters(
+    #     (p for n, p in trainer.model.named_parameters() if "lora" in n)
+    # ):
+    #     if trainer.accelerator.is_main_process:
     trainer.save_model(training_args.output_dir)
     logger.info(f"Model saved to {training_args.output_dir}")
     training_args.distributed_state.wait_for_everyone()  # wait for processes to load
