@@ -3,3 +3,4 @@
 * v4: special tokens
 * v5: completion only training (not conversational)
 * v6: remove special tokens, grpo on instruct model directly
+* v7: no example in sys prompt. data format: "instructions: ... User: ... Controller: ..."
