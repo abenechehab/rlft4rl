@@ -23,7 +23,7 @@ def repeat_on_error(
     logit_bias: Optional[Dict[str, int]] = None,
     good_tokens: List[str] = [],
 ):
-    regex = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+    regex = r"^\s*([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)\s*</action>"
 
     # messages = []
     # if system_prompt:
@@ -31,7 +31,7 @@ def repeat_on_error(
     # messages.append({"content": prompt, "role": "user"})
     # messages.append({"content": "<action>", "role": "assistant"})
 
-    messages = f"### User: {system_prompt + prompt}\n ### Controller: {ACTION_START}"
+    messages = f"### Instructions: {system_prompt}\n ### User: {prompt}\n ### Controller: {ACTION_START}"
 
     count: int = 0
     n_try_gen: List[int] = []
