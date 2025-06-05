@@ -21,7 +21,7 @@ from rlft4rl.reward.reward_functions import (
     log_rew_func_constructor,
     format_reward_func_constructor,
     # reward_model_func_constructor,
-    BC_reward_func_constructor
+    BC_reward_func_constructor,
 )  # ,format_reward_func, equation_reward_func
 from rlft4rl.reward.reward_models import RewardModel
 from rlft4rl.prompts import (
@@ -230,9 +230,9 @@ def grpo_function(
             log_rew_func_constructor(
                 log_dir=training_args.output_dir, add_action_tag=True
             ),
-            # format_reward_func_constructor(
-            #     num_action_dim=6, # add_action_tag=True
-            # ),
+            format_reward_func_constructor(
+                num_action_dim=6,  # add_action_tag=True
+            ),
             # reward_model_func_constructor(
             #     num_action_dim=6,
             #     reward_model=reward_model,

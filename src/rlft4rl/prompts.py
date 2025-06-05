@@ -21,7 +21,7 @@ OBS_END = "</observation>"
 ACTION_START = "<action>"
 ACTION_END = "</action>"
 
-SHORT_SYSTEM_PROMPT_HALFCHEETAH = f"""You are the controller for a HalfCheetah robot in a physics simulation. The HalfCheetah is a 2-dimensional robot consisting of 9 body parts and 8 connecting joints. You will receive the observation between {OBS_START} and {OBS_END} tags, which contains the robot's state. Your task is to generate an action between {ACTION_START} and {ACTION_END} tags. The action is a comma-separated list of 6 numbers, each representing the torque applied to the robot's joints (back thigh, back shin, back foot, front thigh, front shin, front foot).""" # Example output: {ACTION_START}-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655{ACTION_END}."""
+SHORT_SYSTEM_PROMPT_HALFCHEETAH = f"""You are the controller for a HalfCheetah robot in a physics simulation. The HalfCheetah is a 2-dimensional robot consisting of 9 body parts and 8 connecting joints. You will receive the observation between {OBS_START} and {OBS_END} tags, which contains the robot's state. Your task is to generate an action between {ACTION_START} and {ACTION_END} tags. The action is a comma-separated list of 6 numbers, each representing the torque applied to the robot's joints (back thigh, back shin, back foot, front thigh, front shin, front foot)."""  # Example output: {ACTION_START}-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655{ACTION_END}."""
 
 
 INSTRUCTIONS = """Instructions:
