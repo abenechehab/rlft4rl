@@ -47,7 +47,7 @@ def log_rew_func_constructor(
 
 
 def format_reward_func_constructor(
-    log_dir, num_action_dim, add_action_tag=False, completion_only=True
+    num_action_dim, add_action_tag=False, completion_only=True
 ):
     def format_reward_func(prompts, completions, observation, action, **kwargs):
         """
@@ -59,22 +59,17 @@ def format_reward_func_constructor(
             list[float]: Reward scores
         """
         # Check if the format is correct
-        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        regex_values = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        # regex_values_end_tag = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)</action>"
+        # ^ for beginning
         # regex_end = r"</action>$"
         rewards = []
 
         for completion in completions:
             response = completion if completion_only else completion[0]["content"]
 
-            if add_action_tag:
-                response = "<action>" + response
-
-            # try:
-            if random.random() < 0.1:  # 1% chance to write samples into a file
-                log_file = Path(log_dir) / "completion_samples.txt"
-                with open(log_file, "a") as f:
-                    f.write("\n\n==============\n")
-                    f.write(response)
+            # if add_action_tag:
+            #     response = "<action>" + response
 
             match_values = re.search(regex_values, response, re.DOTALL)
             # match_end = re.search(regex_end, response, re.DOTALL)
@@ -83,7 +78,7 @@ def format_reward_func_constructor(
             if match_values is None:
                 reward -= 10.0
             else:
-                reward += 1.0
+                # reward += 1.0
                 # Extract the numbers inside the <action> tag
                 numbers_str = match_values.group(1)
                 # Split the numbers by commas, remove any extra spaces, and count the
@@ -92,11 +87,15 @@ def format_reward_func_constructor(
 
                 # Check if the number of values matches the expected num_action_dim
                 if len(numbers) == num_action_dim:
-                    reward += 1.0
+                    # reward += 1.0
                     # completion size reward
-                    reward -=  max(
-                        (len(response) - len(numbers_str) - len("<action>")) / 10, 0
-                    )
+                    extra_length = len("".join(response.split("</action>")[1:]))
+
+                    reward -= extra_length / 10
+
+                    # end tag bonus
+                    # if re.search(regex_values_end_tag, response, re.DOTALL) is not None:
+                    #     reward += 1.0
                 else:
                     reward -= 10.0
 
@@ -123,7 +122,7 @@ def reward_model_func_constructor(num_action_dim, reward_model, completion_only=
             list[float]: Reward scores
         """
         # Check if the format is correct
-        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        regex_values = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
         rewards = []
 
         for i, completion in enumerate(completions):
@@ -161,7 +160,7 @@ def reward_model_func_constructor(num_action_dim, reward_model, completion_only=
 
     return reward_model_func
 
-
+# Deprecated
 def control_amp_reward_func_constructor(num_action_dim, completion_only=True):
     def control_amp_reward_func(prompts, completions, observation, action, **kwargs):
         """
@@ -173,7 +172,7 @@ def control_amp_reward_func_constructor(num_action_dim, completion_only=True):
             list[float]: Reward scores
         """
         # Check if the format is correct
-        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        regex_values = r"<action>([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)</action>"
         rewards = []
 
         for _, completion in enumerate(completions):
@@ -198,8 +197,6 @@ def control_amp_reward_func_constructor(num_action_dim, completion_only=True):
                     reward += -llm_action.norm(p=2).item()
 
             rewards.append(reward)
-            # except Exception:
-            #     rewards.append(0.0)
         return rewards
 
     return control_amp_reward_func
@@ -216,7 +213,7 @@ def BC_reward_func_constructor(num_action_dim, completion_only=True):
             list[float]: Reward scores
         """
         # Check if the format is correct
-        regex_values = r"([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
+        regex_values = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
         rewards = []
 
         for index, completion in enumerate(completions):
