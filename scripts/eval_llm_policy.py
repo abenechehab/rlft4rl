@@ -6,10 +6,10 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, Any, Optional
 from tqdm import tqdm
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 
 from rlft4rl.utils import setup_logger, make_env, set_seed_everywhere
-from rlft4rl.llm_policy import LLMPolicy
+from rlft4rl.policies.llm_policy import LLMPolicy
 
 
 @dataclass
@@ -34,6 +34,7 @@ class Args:
     system_prompt: bool = True  # Use system prompt
     use_vllm: bool = False
     tol_repeat_gen: int = 10  # Tolerance for repeated generations
+    device: str = "cuda:0"
 
 
 def evaluate_llm_policy(
@@ -83,6 +84,7 @@ def evaluate_llm_policy(
         system_prompt=args.system_prompt,
         use_vllm=args.use_vllm,
         tol_repeat_gen=args.tol_repeat_gen,
+        device=args.device,
     )
 
     # Log the system prompt from LLM policy
