@@ -15,10 +15,11 @@ def debug_fn(completions, observation, action, **kwargs):
         rewards.append(0.0)
     return rewards
 
-def log_rew_func_constructor(
-    log_dir, add_action_tag=False, completion_only=True
-):
-    def log_responses_dummy_reward_func(prompts, completions, observation, action, **kwargs):
+
+def log_rew_func_constructor(log_dir, add_action_tag=False, completion_only=True):
+    def log_responses_dummy_reward_func(
+        prompts, completions, observation, action, **kwargs
+    ):
         """
         Format: <action>...</action>
         Args:
@@ -43,6 +44,7 @@ def log_rew_func_constructor(
 
             rewards.append(0.0)
         return rewards
+
     return log_responses_dummy_reward_func
 
 
@@ -62,7 +64,7 @@ def format_reward_func_constructor(
         regex_values = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)"
         # regex_values_end_tag = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)</action>"
         # ^ for beginning
-        # regex_end = r"</action>$"
+        regex_end = r"</action>$"
         rewards = []
 
         for completion in completions:
@@ -72,7 +74,7 @@ def format_reward_func_constructor(
             #     response = "<action>" + response
 
             match_values = re.search(regex_values, response, re.DOTALL)
-            # match_end = re.search(regex_end, response, re.DOTALL)
+            match_end = re.search(regex_end, response, re.DOTALL)
             reward = 0.0
             # if the format is not correct, reward is 0
             if match_values is None:
@@ -100,8 +102,8 @@ def format_reward_func_constructor(
                     reward -= 10.0
 
                 # Check if the </action> tag is at the end of the response
-                # if match_end is not None:
-                #     reward += 1.0
+                if match_end is not None:
+                    reward += 1.0
 
             rewards.append(reward)
             # except Exception:
@@ -159,6 +161,7 @@ def reward_model_func_constructor(num_action_dim, reward_model, completion_only=
         return rewards
 
     return reward_model_func
+
 
 # Deprecated
 def control_amp_reward_func_constructor(num_action_dim, completion_only=True):
