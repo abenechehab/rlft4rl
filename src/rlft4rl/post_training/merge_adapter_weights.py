@@ -15,7 +15,7 @@ def save_model(model_path_or_id, save_dir, save_tokenizer=True):
     model = AutoPeftModelForCausalLM.from_pretrained(
         model_path_or_id,
         low_cpu_mem_usage=True,
-        torch_dtype=torch.float16,
+        torch_dtype=torch.bfloat16,
     )
     # Merge LoRA and base model and save
     model = model.merge_and_unload()
