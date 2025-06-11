@@ -129,3 +129,15 @@ def trl_generate_completions(
     )
 
     return completions, prompts_text
+
+
+def scale_observation_to_tokens(obs_values, obs_ranges):
+    """Scale observation values to 0-999 range for single-token encoding"""
+    scaled = []
+    for i, val in enumerate(obs_values):
+        min_val, max_val = obs_ranges[i]
+        # Clamp and scale to 0-999
+        clamped = max(min_val, min(max_val, val))
+        scaled_val = int(((clamped - min_val) / (max_val - min_val)) * 999)
+        scaled.append(str(scaled_val))
+    return scaled
