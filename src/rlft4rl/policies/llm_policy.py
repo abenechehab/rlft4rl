@@ -3,8 +3,15 @@ from typing import List, Optional, Dict
 import numpy as np
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS, SHORT_SYSTEM_PROMPT_HALFCHEETAH
+
+from rlft4rl.prompts import (
+    ENV_DESC,
+    INSTRUCTIONS,
+    SHORT_SYSTEM_PROMPT_HALFCHEETAH,
+    SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK,
+)
 from rlft4rl.sampling import repeat_on_error
+from rlft4rl.utils import scale_observation_to_tokens
 
 
 class LLMPolicy:
@@ -23,6 +30,7 @@ class LLMPolicy:
         system_prompt: bool = True,
         use_vllm: bool = False,
         device: str = "cuda:0",
+        discretized: bool = False,
     ):
         if use_vllm:
             self.client = OpenAI(
@@ -42,6 +50,7 @@ class LLMPolicy:
         self.logit_bias = logit_bias
         self.good_tokens = good_tokens
 
+        self.discretized = discretized
         self.init_prompt_template(
             env_name=env_name,
             examples=examples,
@@ -52,10 +61,16 @@ class LLMPolicy:
         self.bool_system_prompt = system_prompt
 
     def init_prompt_template(
-        self, env_name: str, examples: Optional[Dict] = None, use_short: bool = True
+        self,
+        env_name: str,
+        examples: Optional[Dict] = None,
+        use_short: bool = True,
     ):
         if use_short:
-            self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
+            if self.discretized:
+                self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+            else:
+                self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
         else:
             desc = ENV_DESC[env_name]
 
@@ -77,17 +92,42 @@ class LLMPolicy:
 
     def obs_to_prompt(self, obs):
         # Convert obs list to a comma-separated string without brackets
-        obs_string = ", ".join([f"{val:.5f}" for val in obs])
+        # TODO: automatically set obs_ranges based on env
+        obs_ranges = [
+            (-0.60093, 1.65039),
+            (-3.37066, 33.0926),
+            (-0.71955, 1.16646),
+            (-1.07522, 0.97051),
+            (-0.66226, 0.92309),
+            (-1.21191, 0.94732),
+            (-1.32284, 1.13311),
+            (-0.65082, 0.85277),
+            (-2.98412, 18.19746),
+            (-5.99159, 7.16734),
+            (-12.61812, 16.07245),
+            (-29.60571, 26.28331),
+            (-34.81563, 31.061),
+            (-31.80877, 25.972),
+            (-30.01456, 32.53572),
+            (-28.39937, 37.98769),
+            (-19.99082, 36.14906),
+        ]
+        if self.discretized:
+            scaled_obs = scale_observation_to_tokens(obs, obs_ranges)
+        else:
+            scaled_obs = [f"{val:.5f}" for val in obs]
+        obs_string = ", ".join(scaled_obs)
         prompt = f"""<observation> {obs_string} </observation>"""
         return prompt
 
-    def act(self, obs, logger: logging.Logger):
+    def act(self, obs, logger: logging.Logger) -> np.ndarray:
         prompt = self.obs_to_prompt(obs)
 
         # compute max_tokens based on example
-        ex_action = (
-            "<action>-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
-        )
+        if self.discretized:
+            ex_action = "100,101,102,103,104,105</action>"
+        else:
+            ex_action = "-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
         max_tokens = len(self.tokenizer.tokenize(ex_action))
 
         logger.debug(f"max_tokens: {max_tokens}")
@@ -122,12 +162,13 @@ class LLMPolicy:
             tol_repeat_gen=self.tol_repeat_gen,
             logit_bias=self.logit_bias,
             good_tokens=num_tk + symbol_tk + tag_tk + sep_tk,
+            discretized=self.discretized,
         )
-        self.n_try_gen = n_try_gen
+        self.n_try_gen += n_try_gen
         return np.array(action)
 
     def log(self, logger: logging.Logger):
-        logger.info(f"[N tries gen] mean{np.mean(self.n_try_gen)}")
-        logger.info(f"[N tries gen] std{np.std(self.n_try_gen)}")
-        logger.info(f"[N tries gen] min{np.min(self.n_try_gen)}")
-        logger.info(f"[N tries gen] max{np.max(self.n_try_gen)}")
+        logger.info(f"[N tries gen] mean{np.mean(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] std{np.std(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] min{np.min(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] max{np.max(np.array(self.n_try_gen))}")
