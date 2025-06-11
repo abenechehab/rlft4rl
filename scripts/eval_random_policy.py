@@ -4,15 +4,17 @@ import numpy as np
 import tyro
 import logging
 from dataclasses import dataclass
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from tqdm import tqdm
+
+import torch
 
 from rlft4rl.utils import setup_logger, make_env, set_seed_everywhere
 
 
 @dataclass
 class Args:
-    """Arguments for random policy evaluation."""
+    """Arguments for policy evaluation."""
 
     env_id: str = "CartPole-v1"  # Environment ID
     seed: int = 42  # Random seed
@@ -20,17 +22,19 @@ class Args:
     capture_video: bool = False  # Whether to capture video
     verbose: bool = True  # Print detailed information during evaluation
     log_level: str = "INFO"  # Logging level
+    mode: str = "random"  # "constant", "mlp"
+    mlp_policy_path: str = "models/mlp-policy/halfcheetah_medium/BC_test.pth"  # Path to MLP policy (if using MLP mode)
 
 
-def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
-    """Evaluate a random policy in the given environment."""
+def evaluate_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
+    """Evaluate a policy in the given environment."""
 
     # Create directory for videos if needed
     if args.capture_video:
         os.makedirs("videos", exist_ok=True)
 
     # Create environment
-    run_name = f"{args.env_id}/random-policy__{args.seed}__{int(time.time())}"
+    run_name = f"{args.env_id}/{args.mode}-policy__{args.seed}__{int(time.time())}"
     env_fn = make_env(args.env_id, args.seed, 0, args.capture_video, run_name)
     env = env_fn()
 
@@ -47,18 +51,49 @@ def evaluate_random_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]
     episode_returns = []
     episode_lengths = []
 
+    if args.mode == "mlp" and args.mlp_policy_path:
+        # Load MLP policy if specified
+        from rlft4rl.policies.mlp_policy import MLPPolicy, PolicyTrainer
+
+        policy = MLPPolicy(
+            obs_dim=obs_space.shape[0],
+            action_dim=act_space.shape[0],
+            hidden_dims=(256, 256),
+            activation="leaky_relu",
+            output_activation="linear",
+            dropout=0.1,
+        )
+        policy_trainer = PolicyTrainer(policy=policy)
+        policy_trainer.load_model(path=args.mlp_policy_path)
+        policy = policy_trainer.policy
+        policy.eval()
+        device = policy_trainer.device
+        logger.info(f"Loaded MLP policy from {args.mlp_policy_path}")
+    elif args.mode == "constant":
+
+        def policy(observation: Optional[np.array] = None):
+            action = env.action_space.sample()
+            return np.zeros_like(action)
+    else:
+
+        def policy(observation: Optional[np.array] = None):
+            return env.action_space.sample()
+
     # Run evaluation episodes
-    for ep in tqdm(range(args.episodes), desc="-> Evaluating random policy"):
-        _, _ = env.reset(seed=args.seed + ep)
+    for ep in tqdm(range(args.episodes), desc="-> Evaluating policy"):
+        obs, _ = env.reset(seed=args.seed + ep)
         done = False
 
         while not done:
-            # Random action
-            action = env.action_space.sample()
-            action = np.zeros_like(action)  # Zero action for random policy
+            # action
+            if args.mode == "mlp" and args.mlp_policy_path:
+                obs = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(device)
+            action = policy(obs)
+            if type(action) is torch.Tensor:
+                action = action.detach().cpu().numpy().flatten()
 
             # Step environment
-            _, _, terminated, truncated, _ = env.step(action)
+            obs, _, terminated, truncated, _ = env.step(action)
             done = terminated or truncated
 
         if args.verbose:
@@ -98,19 +133,19 @@ def main(args: Args):
 
     # Setup logger
     logger, _, _ = setup_logger(
-        logger_name="RP",
+        logger_name="Peval",
         log_level=args.log_level,
         log_dir="logs",
         env_id=args.env_id,
-        exp_name="random_policy",
+        exp_name=f"{args.mode}-policy",
     )
 
     # Run evaluation
-    results = evaluate_random_policy(args, logger)
+    results = evaluate_policy(args, logger)
 
     # Log results
     logger.info(
-        f"\n-> Results for {args.env_id} with random policy (seed={args.seed}):"
+        f"\n-> Results for {args.env_id} with {args.mode} policy (seed={args.seed}):"
     )
     logger.info(f"Episodes: {args.episodes}")
     logger.info(
