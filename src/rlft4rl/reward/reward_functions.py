@@ -113,6 +113,73 @@ def format_reward_func_constructor(
     return format_reward_func
 
 
+def format_reward_func_constructor_tokenized(
+    num_action_dim, add_action_tag=False, completion_only=True
+):
+    def format_reward_func_tokenized(
+        prompts, completions, observation, action, **kwargs
+    ):
+        """
+        Format: <action>...</action>
+        Args:
+            completions (list[str]): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct
+        regex_values = r"^(\d+(?:,\s*\d+)*)"
+        # regex_values_end_tag = r"^([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)</action>"
+        # ^ for beginning
+        regex_end = r"</action>$"
+        rewards = []
+
+        for completion in completions:
+            response = completion if completion_only else completion[0]["content"]
+
+            # if add_action_tag:
+            #     response = "<action>" + response
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            match_end = re.search(regex_end, response, re.DOTALL)
+            reward = 0.0
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # reward += 1.0
+                # Extract the numbers inside the <action> tag
+                numbers_str = match_values.group(1)
+                # Split the numbers by commas, remove any extra spaces, and count the
+                # number of values
+                numbers = [num.strip() for num in numbers_str.split(",")]
+
+                # Check if the number of values matches the expected num_action_dim
+                if len(numbers) == num_action_dim:
+                    # reward += 1.0
+                    # completion size reward
+                    extra_length = len("".join(response.split("</action>")[1:]))
+
+                    reward -= extra_length / 10
+
+                    # end tag bonus
+                    # if re.search(regex_values_end_tag, response, re.DOTALL) is not None:
+                    #     reward += 1.0
+                else:
+                    reward -= 10.0
+
+                # Check if the </action> tag is at the end of the response
+                if match_end is not None:
+                    reward += 1.0
+
+            rewards.append(reward)
+            # except Exception:
+            #     rewards.append(0.0)
+        return rewards
+
+    return format_reward_func_tokenized
+
+
 def reward_model_func_constructor(num_action_dim, reward_model, completion_only=True):
     def reward_model_func(prompts, completions, observation, action, **kwargs):
         """
@@ -161,6 +228,76 @@ def reward_model_func_constructor(num_action_dim, reward_model, completion_only=
         return rewards
 
     return reward_model_func
+
+
+def reward_model_func_constructor_tokenized(
+    num_action_dim, reward_model, action_ranges, completion_only=True
+):
+    def reward_model_func_tokenized(
+        prompts, completions, observation, action, **kwargs
+    ):
+        """
+        Format: <action>token1,token2,token3,token4,token5,token6</action>
+        Args:
+            completions (list[str]): Generated outputs
+            action_ranges (list[tuple]): List of (min_val, max_val) tuples for each action dimension
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct - expecting integers 0-999
+        regex_values = r"^(\d+(?:,\s*\d+)*)"
+        rewards = []
+
+        for i, completion in enumerate(completions):
+            response = completion if completion_only else completion[0]["content"]
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            reward = 0.0
+
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 3.15  # -3.15 is the min reward across the rw training dataset
+            else:
+                # Extract the token numbers
+                numbers_str = match_values.group(1)
+                # Split the numbers by commas, remove any extra spaces
+                token_strings = [num.strip() for num in numbers_str.split(",")]
+
+                # Check if the number of values matches the expected num_action_dim
+                if len(token_strings) == num_action_dim:
+                    try:
+                        # Convert token strings to integers
+                        tokens = [int(token) for token in token_strings]
+
+                        # Validate tokens are in valid range (0-999)
+                        if all(0 <= token <= 999 for token in tokens):
+                            # Decode tokens back to continuous action values
+                            llm_action_list = []
+                            for j, token in enumerate(tokens):
+                                min_val, max_val = action_ranges[j]
+                                # Convert token back to continuous value
+                                normalized = token / 999.0
+                                action_val = min_val + normalized * (max_val - min_val)
+                                llm_action_list.append(action_val)
+
+                            llm_action = torch.tensor(llm_action_list).to("cuda")
+                            obs = torch.tensor(observation[i]).to("cuda")
+
+                            reward += reward_model(
+                                obs.reshape((1, -1)), llm_action.reshape((1, -1))
+                            ).item()
+                        else:
+                            reward -= 3.15  # Invalid token range
+                    except ValueError:
+                        reward -= 3.15  # Invalid token format
+                else:
+                    reward -= 3.15
+
+            rewards.append(reward)
+        return rewards
+
+    return reward_model_func_tokenized
 
 
 # Deprecated
@@ -247,6 +384,74 @@ def BC_reward_func_constructor(num_action_dim, completion_only=True):
         return rewards
 
     return BC_reward_func
+
+
+def BC_reward_func_constructor_tokenized(
+    num_action_dim, action_ranges, completion_only=True
+):
+    def BC_reward_func_tokenized(prompts, completions, observation, action, **kwargs):
+        """
+        Format: <action>token1,token2,token3,token4,token5,token6</action>
+        Args:
+            completions (list[str]): Generated outputs
+            action_ranges (list[tuple]): List of (min_val, max_val) tuples for each action dimension
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct - expecting integers 0-999
+        regex_values = r"^(\d+(?:,\s*\d+)*)"
+        rewards = []
+
+        for index, completion in enumerate(completions):
+            response = completion if completion_only else completion[0]["content"]
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            reward = 0.0
+
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # Extract the token numbers
+                numbers_str = match_values.group(1)
+                # Split the numbers by commas, remove any extra spaces
+                token_strings = [num.strip() for num in numbers_str.split(",")]
+
+                # Check if the number of values matches the expected num_action_dim
+                if len(token_strings) == num_action_dim:
+                    try:
+                        # Convert token strings to integers
+                        tokens = [int(token) for token in token_strings]
+
+                        # Validate tokens are in valid range (0-999)
+                        if all(0 <= token <= 999 for token in tokens):
+                            # Decode tokens back to continuous action values
+                            llm_action = []
+                            for i, token in enumerate(tokens):
+                                min_val, max_val = action_ranges[i]
+                                # Convert token back to continuous value
+                                normalized = token / 999.0
+                                action_val = min_val + normalized * (max_val - min_val)
+                                llm_action.append(action_val)
+
+                            llm_action = np.array(llm_action)
+                            current_action = np.array(action)[index]
+
+                            reward += -np.linalg.norm(
+                                llm_action - current_action, ord=2
+                            )
+                        else:
+                            reward -= 10.0  # Invalid token range
+                    except ValueError:
+                        reward -= 10.0  # Invalid token format
+                else:
+                    reward -= 10.0
+
+            rewards.append(reward)
+        return rewards
+
+    return BC_reward_func_tokenized
 
 
 def equation_reward_func(completions, target, nums, **kwargs):
