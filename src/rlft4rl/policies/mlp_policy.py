@@ -2,6 +2,7 @@ import os
 from typing import Tuple, Optional, Dict, Any
 from dataclasses import dataclass
 import tyro
+from tqdm import tqdm
 
 import numpy as np
 
@@ -19,7 +20,7 @@ from rlft4rl.utils import setup_logger, set_seed_everywhere
 class Args:
     dataset_name: str = "mujoco/halfcheetah/medium-v0"
     hidden_dim: int = 256
-    batch_size: int = 2048
+    batch_size: int = 128
     activation: str = "leaky_relu"
     output_activation: str = "linear"
     lr: float = 1e-3
@@ -252,7 +253,7 @@ class PolicyTrainer:
 
         best_model_state = None
 
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs), desc="Epochs", total=epochs):
             # Training
             train_metrics = self.train_epoch(train_dataloader, epoch)
 
@@ -324,6 +325,7 @@ class PolicyTrainer:
                 else None,
                 "training_history": self.training_history,
                 "best_val_loss": self.best_val_loss,
+                "device": str(self.device),
             },
             path,
         )
@@ -338,6 +340,7 @@ class PolicyTrainer:
             self.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
         self.training_history = checkpoint.get("training_history", [])
         self.best_val_loss = checkpoint.get("best_val_loss", float("inf"))
+        self.device = torch.device(checkpoint.get("device", "cpu"))
         logger.info(f"Model loaded from {path}")
 
 
@@ -374,7 +377,7 @@ def main(args: Args):
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size)
 
     save_path = f"{args.log_dir}/BC_{args.version}.pth"
-    os.makedirs(save_path, exist_ok=True)
+    os.makedirs(args.log_dir, exist_ok=True)
 
     # Create policy
     policy = MLPPolicy(
