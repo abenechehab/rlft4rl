@@ -35,6 +35,7 @@ class Args:
     use_vllm: bool = False
     tol_repeat_gen: int = 10  # Tolerance for repeated generations
     device: str = "cuda:0"
+    discretized: bool = False  # Whether to use discretized actions
 
 
 def evaluate_llm_policy(
@@ -85,6 +86,7 @@ def evaluate_llm_policy(
         use_vllm=args.use_vllm,
         tol_repeat_gen=args.tol_repeat_gen,
         device=args.device,
+        discretized=args.discretized,
     )
 
     # Log the system prompt from LLM policy
