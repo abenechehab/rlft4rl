@@ -8,6 +8,56 @@ from rlft4rl.utils import trl_generate_completions
 from rlft4rl.prompts import ACTION_START
 
 
+def extract_action_from_response(
+    response: str,
+    n_action_dim: int = 6,
+    discretized: bool = False,
+) -> Optional[List[float]]:
+    """
+    Extracts a list of action dimensions from the response string.
+    The response is expected to contain a comma-separated list of numbers
+    enclosed in <action> tags.
+
+    Args:
+        response (str): The response string containing action dimensions.
+        n_action_dim (int): The expected number of action dimensions.
+
+    Returns:
+        List[float]: A list of action dimensions extracted from the response.
+    """
+    # regex = r"^\s*([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)\s*</action>"
+    if discretized:
+        regex = r"^\s*(\d+(?:,\s*\d+)*)"
+    else:
+        regex = r"^\s*([-+]?\d*\.?\d+(?:,\s*[-+]?\d*\.?\d+)*)"
+    match = re.search(regex, response, re.DOTALL)
+
+    if match is not None:
+        numbers_str = match.group(1)
+        numbers = [num.strip() for num in numbers_str.split(",") if num.strip()]
+        if len(numbers) == n_action_dim:
+            if discretized:
+                # Convert token strings to integers
+                tokens = [int(token) for token in numbers]
+                # Validate tokens are in valid range (0-999)
+                if all(0 <= token <= 999 for token in tokens):
+                    # Decode tokens back to continuous action values
+                    action = []
+                    for _, token in enumerate(tokens):
+                        # TODO: automatically set action_ranges based on env
+                        min_val, max_val = -1.0, 1.0  # action_ranges[j]
+                        # Convert token back to continuous value
+                        normalized = token / 999.0
+                        action_val = min_val + normalized * (max_val - min_val)
+                        action.append(action_val)
+                    return action
+                # else: Invalid token range
+            else:
+                return [float(x) for x in numbers]
+    # breakpoint()
+    return None
+
+
 def repeat_on_error(
     prompt: str,
     system_prompt: str,
@@ -22,9 +72,8 @@ def repeat_on_error(
     tol_repeat_gen: int = 5,
     logit_bias: Optional[Dict[str, int]] = None,
     good_tokens: List[str] = [],
+    discretized: bool = False,
 ):
-    regex = r"^\s*([-+]?\d*\.\d+(?:,\s*[-+]?\d*\.\d+)*)\s*</action>"
-
     # messages = []
     # if system_prompt:
     #     messages.append({"content": system_prompt, "role": "system"})
@@ -51,7 +100,7 @@ def repeat_on_error(
             generation_config = GenerationConfig(
                 max_new_tokens=100,
                 do_sample=True,
-                temperature=0.9,
+                temperature=temperature,
                 num_return_sequences=1,
                 pad_token_id=2,
             )
@@ -69,19 +118,18 @@ def repeat_on_error(
 
         logger.debug(f"raw_response: {raw_response}")
 
-        match = re.search(regex, raw_response, re.DOTALL)
+        action = extract_action_from_response(
+            response=raw_response,
+            n_action_dim=n_action_dim,
+            discretized=discretized,
+        )
 
-        if match is None:
-            n_try_gen.append(count + 1)
+        # If the response does not match the expected format, try again
+        logger.debug(f"action: {action}")
+        if action:
+            break
         else:
-            numbers_str = match.group(1)
-            numbers = [num.strip() for num in numbers_str.split(",")]
-            if len(numbers) == n_action_dim:
-                action = [float(x) for x in numbers]
-                break
-            else:
-                n_try_gen.append(count + 1)
-                logger.debug(f"Expected {n_action_dim} numbers, got {len(numbers)}")
+            n_try_gen.append(count + 1)
 
         count += 1
         if count > tol_repeat_gen:
