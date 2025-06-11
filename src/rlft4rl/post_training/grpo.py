@@ -199,6 +199,10 @@ def grpo_function(
         }
     )
 
+    num_action_dim = dataset[0]["action"].shape[0]
+    num_obs_dim = dataset[0]["observation"].shape[0]
+    logger.info(f"*** num_obs_dim {num_obs_dim}, num_action_dim {num_action_dim} ***")
+
     # split the dataset into train and test
     train_test_split = dataset.train_test_split(test_size=0.1)
 
@@ -211,7 +215,7 @@ def grpo_function(
 
     # reward model
     checkpoint = torch.load(script_args.reward_model_path)
-    reward_model = RewardModel(state_dim=17, action_dim=6)
+    reward_model = RewardModel(state_dim=num_obs_dim, action_dim=num_action_dim)
     reward_model.load_state_dict(checkpoint["model_state_dict"])
     reward_model.state_mean = checkpoint["state_mean"]
     reward_model.state_std = checkpoint["state_std"]
@@ -231,14 +235,14 @@ def grpo_function(
                 log_dir=training_args.output_dir, add_action_tag=True
             ),
             format_reward_func_constructor(
-                num_action_dim=6,  # add_action_tag=True
+                num_action_dim=num_action_dim,  # add_action_tag=True
             ),
             # reward_model_func_constructor(
-            #     num_action_dim=6,
+            #     num_action_dim=num_action_dim,
             #     reward_model=reward_model,
             # ),
-            # control_amp_reward_func_constructor(num_action_dim=6),
-            BC_reward_func_constructor(num_action_dim=6),
+            # control_amp_reward_func_constructor(num_action_dim=num_action_dim),
+            BC_reward_func_constructor(num_action_dim=num_action_dim),
         ],
         args=training_args,
         train_dataset=train_dataset,
