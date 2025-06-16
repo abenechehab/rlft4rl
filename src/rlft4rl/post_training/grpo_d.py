@@ -208,7 +208,6 @@ def grpo_function(
     action_ranges = [
         (float(action_min[i]), float(action_max[i])) for i in range(len(action_min))
     ]
-    breakpoint()
     num_action_dim = len(action_min)
 
     # Second pass to create prompts with scaled observations
