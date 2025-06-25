@@ -19,6 +19,7 @@ data/sft
 models/
 
 .venv
+.vscode
 
 .ruff_cache/
 
