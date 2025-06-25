@@ -69,11 +69,25 @@ def evaluate_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
         policy.eval()
         device = policy_trainer.device
         logger.info(f"Loaded MLP policy from {args.mlp_policy_path}")
+    elif args.mode == "grpo-mlp" and args.mlp_policy_path:
+        # Load MLP policy if specified
+        if "CartPole" in args.env_id:
+            from rlft4rl.policies.grpo_mlp_policy_discrete import load_mlp_model
+        else:
+            from rlft4rl.policies.grpo_mlp_policy import load_mlp_model
+
+        policy = load_mlp_model(model_path=args.mlp_policy_path)
+        policy.eval()
+        device = policy.device
+        logger.info(f"Loaded GRPO-MLP policy from {args.mlp_policy_path}")
     elif args.mode == "constant":
 
         def policy(observation: Optional[np.array] = None):
-            action = env.action_space.sample()
-            return np.zeros_like(action)
+            if env.action_space.shape:
+                # For continuous action spaces, return a constant action
+                return np.zeros_like(env.action_space.shape)
+            else:
+                return 0
     else:
 
         def policy(observation: Optional[np.array] = None):
@@ -86,11 +100,18 @@ def evaluate_policy(args: Args, logger: logging.Logger) -> Dict[str, Any]:
 
         while not done:
             # action
-            if args.mode == "mlp" and args.mlp_policy_path:
+            if args.mode in ["mlp", "grpo-mlp"] and args.mlp_policy_path:
                 obs = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(device)
-            action = policy(obs)
+
+            if args.mode == "grpo-mlp":
+                action = policy.get_action(obs)
+            else:
+                action = policy(obs)
+
             if type(action) is torch.Tensor:
                 action = action.detach().cpu().numpy().flatten()
+                if len(action) == 1:
+                    action = action[0]  # For discrete actions, take the first element
 
             # Step environment
             obs, _, terminated, truncated, _ = env.step(action)
