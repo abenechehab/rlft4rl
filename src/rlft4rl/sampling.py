@@ -10,7 +10,7 @@ from rlft4rl.prompts import ACTION_START
 
 def extract_action_from_response(
     response: str,
-    n_action_dim: int = 6,
+    n_action_dim: int,
     discretized: bool = False,
 ) -> Optional[List[float]]:
     """
@@ -58,6 +58,36 @@ def extract_action_from_response(
     return None
 
 
+def extract_discrete_action_from_response(
+    response: str,
+    n_discrete: int,
+) -> Optional[List[float]]:
+    """
+    Extracts a list of action dimensions from the response string.
+    The response is expected to contain a comma-separated list of numbers
+    enclosed in <action> tags.
+
+    Args:
+        response (str): The response string containing action dimensions.
+        n_discrete (int): The total number of discrete actions.
+
+    Returns:
+        List[float]: The action.
+    """
+    regex_values = rf"^(?:[0-{n_discrete - 1}])</action>"
+    match_values = re.search(regex_values, response, re.DOTALL)
+
+    # if the format is not correct, reward is 0
+    if match_values is None:
+        return None
+    else:
+        # Extract the token numbers
+        match = match_values.group(0)
+
+        # extract action
+        return int(match[0])
+
+
 def repeat_on_error(
     prompt: str,
     system_prompt: str,
@@ -73,6 +103,7 @@ def repeat_on_error(
     logit_bias: Optional[Dict[str, int]] = None,
     good_tokens: List[str] = [],
     discretized: bool = False,
+    discrete_actions: bool = False,
 ):
     # messages = []
     # if system_prompt:
@@ -83,7 +114,6 @@ def repeat_on_error(
     messages = f"### Instructions: {system_prompt}\n ### User: {prompt}\n ### Controller: {ACTION_START}"
 
     count: int = 0
-    n_try_gen: List[int] = []
 
     while True:
         if client is not None:
@@ -98,7 +128,7 @@ def repeat_on_error(
             raw_response = response.choices[0].message.content
         else:
             generation_config = GenerationConfig(
-                max_new_tokens=100,
+                max_new_tokens=max_tokens,
                 do_sample=True,
                 temperature=temperature,
                 num_return_sequences=1,
@@ -118,18 +148,23 @@ def repeat_on_error(
 
         logger.debug(f"raw_response: {raw_response}")
 
-        action = extract_action_from_response(
-            response=raw_response,
-            n_action_dim=n_action_dim,
-            discretized=discretized,
-        )
+        if discrete_actions:
+            action = extract_discrete_action_from_response(
+                response=raw_response,
+                n_discrete=n_action_dim,
+            )
+        else:
+            action = extract_action_from_response(
+                response=raw_response,
+                n_action_dim=n_action_dim,
+                discretized=discretized,
+            )
 
         # If the response does not match the expected format, try again
         logger.debug(f"action: {action}")
-        if action:
+        if action is not None:
+            count += 1
             break
-        else:
-            n_try_gen.append(count + 1)
 
         count += 1
         if count > tol_repeat_gen:
@@ -137,7 +172,7 @@ def repeat_on_error(
                 f"Failed to get a valid response after {count} repetitions! "
                 f"Expected action of dim {n_action_dim}, got: {raw_response}"
             )
-    return action, n_try_gen
+    return action, count
 
 
 def complete_on_error(
