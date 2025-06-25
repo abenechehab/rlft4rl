@@ -10,6 +10,7 @@ import numpy as np
 from transformers import (
     AutoTokenizer,
     AutoModelForCausalLM,
+    AutoConfig,
     BitsAndBytesConfig,
     set_seed,
 )
@@ -17,19 +18,13 @@ from datasets import load_dataset
 from trl import GRPOConfig, GRPOTrainer, get_peft_config, ModelConfig, TrlParser
 
 from rlft4rl.utils import setup_logger, set_seed_everywhere, scale_observation_to_tokens
-from rlft4rl.reward.reward_functions import (
-    log_rew_func_constructor,
-    format_reward_func_constructor_tokenized,
-    # reward_model_func_constructor,
-    BC_reward_func_constructor_tokenized,
-)  # ,format_reward_func, equation_reward_func
+from rlft4rl.reward.reward_functions import log_rew_func_constructor
 from rlft4rl.reward.reward_models import RewardModel
 from rlft4rl.prompts import (
     OBS_START,
     OBS_END,
     ACTION_START,
     ACTION_END,
-    SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK,
 )
 
 
@@ -45,9 +40,11 @@ class ScriptArguments:
     dataset_size: int
     dataset_splits: str = "train"
     tokenizer_name_or_path: str = None
+    use_reward_model: bool = False
     reward_model_path: str = (
         "models/reward_models/halfcheetah_expert/rw_multiGPU_saveall.pt"
     )
+    pretrained: bool = True
 
 
 ########################
@@ -131,9 +128,13 @@ def grpo_function(
         peft_config = None
 
     # load the model with our kwargs
-    model = AutoModelForCausalLM.from_pretrained(
-        model_args.model_name_or_path, **model_kwargs
-    ).to("cuda")
+    if script_args.pretrained:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_args.model_name_or_path, **model_kwargs
+        ).to("cuda")
+    else:
+        config = AutoConfig.from_pretrained(model_args.model_name_or_path)
+        model = AutoModelForCausalLM.from_config(config).to("cuda")
 
     # for peft we need to make sure we use a chat template that is not using special
     # tokens as by default embedding layers will not be trainable
@@ -177,6 +178,20 @@ def grpo_function(
     # Prepare and format dataset
     #############################
 
+    # system prompt
+    if "cartpole" in script_args.dataset_id_or_path.lower():
+        from rlft4rl.prompts import SHORT_SYSTEM_PROMPT_CARTPOLE
+
+        system_prompt = SHORT_SYSTEM_PROMPT_CARTPOLE
+    elif "halfcheetah" in script_args.dataset_id_or_path.lower():
+        from rlft4rl.prompts import SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+
+        system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+    else:
+        raise ValueError(
+            f"Dataset {script_args.dataset_id_or_path} not supported for GRPO training."
+        )
+
     def convert_to_array(s: str):
         s = s.split(",")
         s = [float(x) for x in s]
@@ -213,7 +228,7 @@ def grpo_function(
     # Second pass to create prompts with scaled observations
     dataset = dataset.map(
         lambda x: {
-            "prompt": f"### Instructions: {SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK}\n ### User: {' '.join(scale_observation_to_tokens(x['observation'], obs_ranges))}\n ### Controller: {ACTION_START}",
+            "prompt": f"### Instructions: {system_prompt}\n ### User: {' '.join(scale_observation_to_tokens(x['observation'], obs_ranges))}\n ### Controller: {ACTION_START}",
             "observation": x["observation"],
             "action": x["action"],
         }
@@ -231,39 +246,76 @@ def grpo_function(
     # Instantiate GRPO trainer
     ##########################
 
-    # reward model
-    checkpoint = torch.load(script_args.reward_model_path)
-    reward_model = RewardModel(state_dim=num_obs_dim, action_dim=num_action_dim)
-    reward_model.load_state_dict(checkpoint["model_state_dict"])
-    reward_model.state_mean = checkpoint["state_mean"]
-    reward_model.state_std = checkpoint["state_std"]
-    reward_model.action_mean = checkpoint["action_mean"]
-    reward_model.action_std = checkpoint["action_std"]
-    reward_model.reward_mean = checkpoint["reward_mean"]
-    reward_model.reward_std = checkpoint["reward_std"]
-    reward_model.eval()
-    reward_model = reward_model.to("cuda")
+    reward_funcs = [
+        log_rew_func_constructor(log_dir=training_args.output_dir, add_action_tag=True)
+    ]
+
+    if "cartpole" in script_args.dataset_id_or_path.lower():
+        from rlft4rl.reward.reward_functions import (
+            format_reward_func_constructor_discrete,
+            BC_reward_func_constructor_discrete,
+        )
+
+        reward_funcs.append(
+            format_reward_func_constructor_discrete(
+                n_discrete=2,  # add_action_tag=True
+            )
+        )
+        reward_funcs.append(
+            BC_reward_func_constructor_discrete(
+                n_discrete=2,
+            )
+        )
+    elif "halfcheetah" in script_args.dataset_id_or_path.lower():
+        from rlft4rl.reward.reward_functions import (
+            format_reward_func_constructor_tokenized,
+            BC_reward_func_constructor_tokenized,
+        )
+
+        reward_funcs.append(
+            format_reward_func_constructor_tokenized(
+                num_action_dim=num_action_dim,
+            ),
+            BC_reward_func_constructor_tokenized(
+                num_action_dim=num_action_dim,
+                action_ranges=action_ranges,
+            ),
+        )
+    else:
+        raise ValueError(
+            f"Dataset {script_args.dataset_id_or_path} not supported for GRPO training."
+        )
+
+    if script_args.use_reward_model:
+        from rlft4rl.reward.reward_functions import (
+            reward_model_func_constructor_tokenized,
+        )
+
+        # reward model
+        checkpoint = torch.load(script_args.reward_model_path)
+        reward_model = RewardModel(state_dim=num_obs_dim, action_dim=num_action_dim)
+        reward_model.load_state_dict(checkpoint["model_state_dict"])
+        reward_model.state_mean = checkpoint["state_mean"]
+        reward_model.state_std = checkpoint["state_std"]
+        reward_model.action_mean = checkpoint["action_mean"]
+        reward_model.action_std = checkpoint["action_std"]
+        reward_model.reward_mean = checkpoint["reward_mean"]
+        reward_model.reward_std = checkpoint["reward_std"]
+        reward_model.eval()
+        reward_model = reward_model.to("cuda")
+
+        reward_funcs.append(
+            reward_model_func_constructor_tokenized(
+                num_action_dim=num_action_dim,
+                reward_model=reward_model,
+            )
+        )
 
     # TODO: set num_action_dim automatically
     trainer = GRPOTrainer(
         model=model,
         processing_class=tokenizer,
-        reward_funcs=[
-            log_rew_func_constructor(
-                log_dir=training_args.output_dir, add_action_tag=True
-            ),
-            format_reward_func_constructor_tokenized(
-                num_action_dim=num_action_dim,  # add_action_tag=True
-            ),
-            # reward_model_func_constructor(
-            #     num_action_dim=num_action_dim,
-            #     reward_model=reward_model,
-            # ),
-            # control_amp_reward_func_constructor(num_action_dim=num_action_dim),
-            BC_reward_func_constructor_tokenized(
-                num_action_dim=num_action_dim, action_ranges=action_ranges
-            ),
-        ],
+        reward_funcs=reward_funcs,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=test_dataset,
