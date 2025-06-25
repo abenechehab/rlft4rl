@@ -130,7 +130,9 @@ def evaluate_llm_policy(
             # log action values
             if action.shape:
                 for i in range(len(action)):
-                    ts_writer.add_scalar(f"action/ep_{ep + 1}/dim_{i}", action[i], step_count)
+                    ts_writer.add_scalar(
+                        f"action/ep_{ep + 1}/dim_{i}", action[i], step_count
+                    )
             else:
                 ts_writer.add_scalar(f"action/ep_{ep + 1}/value", action, step_count)
 
