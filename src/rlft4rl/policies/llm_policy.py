@@ -4,12 +4,7 @@ import numpy as np
 from openai import OpenAI
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from rlft4rl.prompts import (
-    ENV_DESC,
-    INSTRUCTIONS,
-    SHORT_SYSTEM_PROMPT_HALFCHEETAH,
-    SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK,
-)
+from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
 from rlft4rl.sampling import repeat_on_error
 from rlft4rl.utils import scale_observation_to_tokens
 
@@ -25,12 +20,14 @@ class LLMPolicy:
         logit_bias,
         good_tokens,
         env_name,
+        n_action_dim: int,
         tol_repeat_gen: int = 10,
         examples: Optional[Dict] = None,
         system_prompt: bool = True,
         use_vllm: bool = False,
         device: str = "cuda:0",
         discretized: bool = False,
+        discrete_actions: bool = False,
     ):
         if use_vllm:
             self.client = OpenAI(
@@ -50,7 +47,10 @@ class LLMPolicy:
         self.logit_bias = logit_bias
         self.good_tokens = good_tokens
 
+        self.n_action_dim = n_action_dim
         self.discretized = discretized
+        self.discrete_actions = discrete_actions
+
         self.init_prompt_template(
             env_name=env_name,
             examples=examples,
@@ -67,10 +67,27 @@ class LLMPolicy:
         use_short: bool = True,
     ):
         if use_short:
-            if self.discretized:
-                self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+            # system prompt
+            if "cartpole" in env_name.lower():
+                from rlft4rl.prompts import SHORT_SYSTEM_PROMPT_CARTPOLE
+
+                self.system_prompt = SHORT_SYSTEM_PROMPT_CARTPOLE
+                self.ex_action = "0</action>"
+            elif "halfcheetah" in env_name.lower():
+                if self.discretized:
+                    from rlft4rl.prompts import SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+
+                    self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH_TOK
+                    self.ex_action = "100,101,102,103,104,105</action>"
+                else:
+                    from rlft4rl.prompts import SHORT_SYSTEM_PROMPT_HALFCHEETAH
+
+                    self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
+                    self.ex_action = (
+                        "-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
+                    )
             else:
-                self.system_prompt = SHORT_SYSTEM_PROMPT_HALFCHEETAH
+                raise ValueError(f"Dataset {env_name} not supported for GRPO training.")
         else:
             desc = ENV_DESC[env_name]
 
@@ -124,11 +141,7 @@ class LLMPolicy:
         prompt = self.obs_to_prompt(obs)
 
         # compute max_tokens based on example
-        if self.discretized:
-            ex_action = "100,101,102,103,104,105</action>"
-        else:
-            ex_action = "-0.39555,-0.66661,-0.36855,0.91655,-0.81651,1.16655</action>"
-        max_tokens = len(self.tokenizer.tokenize(ex_action))
+        max_tokens = len(self.tokenizer.tokenize(self.ex_action))
 
         logger.debug(f"max_tokens: {max_tokens}")
 
@@ -155,7 +168,7 @@ class LLMPolicy:
             system_prompt=self.system_prompt if self.bool_system_prompt else None,
             model=self.model,
             tokenizer=self.tokenizer,
-            n_action_dim=6,  # TODO: set this automatically
+            n_action_dim=self.n_action_dim,
             temperature=self.temperature,
             max_tokens=max_tokens,
             logger=logger,
@@ -163,12 +176,13 @@ class LLMPolicy:
             logit_bias=self.logit_bias,
             good_tokens=num_tk + symbol_tk + tag_tk + sep_tk,
             discretized=self.discretized,
+            discrete_actions=self.discrete_actions,
         )
-        self.n_try_gen += n_try_gen
+        self.n_try_gen.append(n_try_gen)
         return np.array(action)
 
     def log(self, logger: logging.Logger):
-        logger.info(f"[N tries gen] mean{np.mean(np.array(self.n_try_gen))}")
-        logger.info(f"[N tries gen] std{np.std(np.array(self.n_try_gen))}")
-        logger.info(f"[N tries gen] min{np.min(np.array(self.n_try_gen))}")
-        logger.info(f"[N tries gen] max{np.max(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] mean: {np.mean(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] std: {np.std(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] min: {np.min(np.array(self.n_try_gen))}")
+        logger.info(f"[N tries gen] max: {np.max(np.array(self.n_try_gen))}")
