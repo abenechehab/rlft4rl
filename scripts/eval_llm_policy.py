@@ -81,12 +81,14 @@ def evaluate_llm_policy(
         logit_bias=args.logit_bias,
         good_tokens=[] if not args.good_tokens else args.good_tokens.split(","),
         env_name=args.env_id,
+        n_action_dim=act_space.n if hasattr(act_space, "n") else act_space.shape[0],
         examples=examples if args.n_examples else None,
         system_prompt=args.system_prompt,
         use_vllm=args.use_vllm,
         tol_repeat_gen=args.tol_repeat_gen,
         device=args.device,
         discretized=args.discretized,
+        discrete_actions=hasattr(act_space, "n"),
     )
 
     # Log the system prompt from LLM policy
@@ -109,10 +111,13 @@ def evaluate_llm_policy(
                 logger.info(
                     f"[Ep {ep + 1}, Step {step_count}] obs: {[f'{e:.4f}' for e in obs]}"
                 )
-                logger.info(
-                    f"[Ep {ep + 1}, Step {step_count}] "
-                    f"action: {[f'{e:.4f}' for e in action]}"
-                )
+                if action.shape:
+                    logger.info(
+                        f"[Ep {ep + 1}, Step {step_count}] "
+                        f"action: {[f'{e:.4f}' for e in action]}"
+                    )
+                else:
+                    logger.info(f"[Ep {ep + 1}, Step {step_count}] action: {action}")
 
             # Step environment
             obs, _, terminated, truncated, _ = env.step(action)
@@ -123,9 +128,11 @@ def evaluate_llm_policy(
             pbar.update(1)
 
             # log action values
-            if ep == 0:
+            if action.shape:
                 for i in range(len(action)):
-                    ts_writer.add_scalar(f"action/dim_{i}", action[i], step_count)
+                    ts_writer.add_scalar(f"action/ep_{ep + 1}/dim_{i}", action[i], step_count)
+            else:
+                ts_writer.add_scalar(f"action/ep_{ep + 1}/value", action, step_count)
 
         # Close the progress bar for this episode
         pbar.close()
@@ -139,6 +146,9 @@ def evaluate_llm_policy(
         # Record episode metrics
         episode_returns.append(env.return_queue[-1])
         episode_lengths.append(env.length_queue[-1])
+
+        ts_writer.add_scalar("Return/Value", episode_returns[-1], ep + 1)
+        ts_writer.add_scalar("Return/Length", episode_lengths[-1], ep + 1)
 
     # Calculate statistics
     mean_return = np.mean(episode_returns)
