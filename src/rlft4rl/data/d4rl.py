@@ -6,7 +6,6 @@ from typing import Dict, Any
 import json
 
 from rlft4rl.utils import setup_logger, set_seed_everywhere
-from rlft4rl.prompts import ENV_DESC, INSTRUCTIONS
 
 import minari
 
@@ -21,8 +20,6 @@ class Args:
     n_episodes: int = 5  # Number of sampling iterations
     verbose: bool = True  # Print detailed information
     log_level: str = "INFO"  # Logging level
-    system_prompt: bool = False  # Use system prompt
-    chat_template: bool = False  # Use chat template
 
 
 def obs_to_prompt(obs):
@@ -34,7 +31,10 @@ def obs_to_prompt(obs):
 
 def action_to_prompt(action):
     # Convert obs list to a comma-separated string without brackets
-    action_string = ",".join([f"{val:.5f}" for val in action])
+    if action.shape:
+        action_string = ",".join([f"{val:.5f}" for val in action])
+    else:
+        action_string = str(action)
     prompt = f"""<action>{action_string}</action>"""
     return prompt
 
@@ -43,22 +43,8 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
     """Explore a Minari dataset by sampling episodes."""
     # Create a filename for the training examples
     filename = (
-        "data/sft/"
-        + args.dataset_id.replace("/", "_")
-        + f"_{args.n_episodes}_sp{int(args.system_prompt)}_ct{int(args.chat_template)}."
-        + "json"
+        "data/sft/" + args.dataset_id.replace("/", "_") + f"_{args.n_episodes}.json"
     )
-
-    # make system prompt
-    desc = ENV_DESC[args.env_name]
-
-    system_prompt = f"""
-    You are the controller for a {args.env_name} robot in a physics simulation.
-
-    Environment Description:
-    """
-    system_prompt += desc
-    system_prompt += INSTRUCTIONS
 
     dataset = minari.load_dataset(args.dataset_id, download=True)
     dataset.set_seed(seed=args.seed)
@@ -77,16 +63,7 @@ def explore_minari_dataset(args: Args, logger: logging.Logger) -> Dict[str, Any]
             obs_promp = obs_to_prompt(obs)
             act_promp = action_to_prompt(act)
 
-            if args.chat_template:
-                # Construct a training example similar to the one in the user's example
-                messages = []
-                if args.system_prompt:
-                    messages.append({"content": system_prompt, "role": "system"})
-                messages.append({"content": obs_promp, "role": "user"})
-                messages.append({"content": act_promp, "role": "assistant"})
-                training_example = {"messages": messages}
-            else:
-                training_example = {"observation": obs_promp, "action": act_promp}
+            training_example = {"observation": obs_promp, "action": act_promp}
 
             # Write the training example to a JSON file
             with open(filename, "a") as f:
