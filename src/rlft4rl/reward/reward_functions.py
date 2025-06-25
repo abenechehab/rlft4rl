@@ -122,7 +122,7 @@ def format_reward_func_constructor_tokenized(
         """
         Format: <action>...</action>
         Args:
-            completions (list[str]): Generated outputs
+            completions (list[str): Generated outputs
 
         Returns:
             list[float]: Reward scores
@@ -178,6 +178,59 @@ def format_reward_func_constructor_tokenized(
         return rewards
 
     return format_reward_func_tokenized
+
+
+def format_reward_func_constructor_discrete(
+    n_discrete, add_action_tag=False, completion_only=True
+):
+    def format_reward_func_discrete(
+        prompts, completions, observation, action, **kwargs
+    ):
+        """
+        Format: <action>...</action>
+        Args:
+            completions (list[str): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct
+        regex_values = rf"^(?:[0-{n_discrete - 1}])</action>"
+        # ^ for beginning
+        regex_end = r"</action>$"
+        rewards = []
+
+        for completion in completions:
+            response = completion if completion_only else completion[0]["content"]
+
+            # if add_action_tag:
+            #     response = "<action>" + response
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            match_end = re.search(regex_end, response, re.DOTALL)
+            reward = 0.0
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # reward += 1.0
+                # Extract the numbers inside the <action> tag
+                match = match_values.group(0)
+
+                extra_length = len(response) - len(match)
+
+                reward -= extra_length / 10
+
+                # Check if the </action> tag is at the end of the response
+                if match_end is not None:
+                    reward += 1.0
+                # Check if the number of values matches the expected num_action_dim
+            rewards.append(reward)
+            # except Exception:
+            #     rewards.append(0.0)
+        return rewards
+
+    return format_reward_func_discrete
 
 
 def reward_model_func_constructor(num_action_dim, reward_model, completion_only=True):
@@ -376,7 +429,11 @@ def BC_reward_func_constructor(num_action_dim, completion_only=True):
                     llm_action = np.array([float(act) for act in numbers])
                     current_action = np.array(action)[index]
 
-                    reward += -np.linalg.norm(llm_action - current_action, ord=2)
+                    reward += -torch.nn.MSELoss()(
+                        torch.tensor(llm_action),
+                        torch.tensor(current_action),
+                    ).item()
+
                 else:
                     reward -= 10.0
 
@@ -438,9 +495,10 @@ def BC_reward_func_constructor_tokenized(
                             llm_action = np.array(llm_action)
                             current_action = np.array(action)[index]
 
-                            reward += -np.linalg.norm(
-                                llm_action - current_action, ord=2
-                            )
+                            reward += -torch.nn.MSELoss()(
+                                torch.tensor(llm_action),
+                                torch.tensor(current_action),
+                            ).item()
                         else:
                             reward -= 10.0  # Invalid token range
                     except ValueError:
@@ -452,6 +510,45 @@ def BC_reward_func_constructor_tokenized(
         return rewards
 
     return BC_reward_func_tokenized
+
+
+def BC_reward_func_constructor_discrete(n_discrete, completion_only=True):
+    def BC_reward_func_discrete(prompts, completions, observation, action, **kwargs):
+        """
+        Format: <action>action_discrete_value</action> e.g. 0 or 1
+        Args:
+            completions (list[str]): Generated outputs
+
+        Returns:
+            list[float]: Reward scores
+        """
+        # Check if the format is correct - expecting integers 0-999
+        regex_values = rf"^(?:[0-{n_discrete - 1}])</action>"
+        rewards = []
+
+        for index, completion in enumerate(completions):
+            response = completion if completion_only else completion[0]["content"]
+
+            match_values = re.search(regex_values, response, re.DOTALL)
+            reward = 0.0
+
+            # if the format is not correct, reward is 0
+            if match_values is None:
+                reward -= 10.0
+            else:
+                # Extract the token numbers
+                match = match_values.group(0)
+
+                # extract action
+                llm_action = int(match[0])
+
+                # Binary distance: 0 if same, 1 if different
+                reward += -float(llm_action != action[index][0])
+
+            rewards.append(reward)
+        return rewards
+
+    return BC_reward_func_discrete
 
 
 def equation_reward_func(completions, target, nums, **kwargs):
