@@ -34,7 +34,7 @@ class Args:
     system_prompt: bool = True  # Use system prompt
     use_vllm: bool = False
     tol_repeat_gen: int = 10  # Tolerance for repeated generations
-    device: str = "cuda:0"
+    device: str = "auto"
     discretized: bool = False  # Whether to use discretized actions
 
 

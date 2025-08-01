@@ -25,7 +25,7 @@ class LLMPolicy:
         examples: Optional[Dict] = None,
         system_prompt: bool = True,
         use_vllm: bool = False,
-        device: str = "cuda:0",
+        device: str = "auto",
         discretized: bool = False,
         discrete_actions: bool = False,
     ):
@@ -37,7 +37,9 @@ class LLMPolicy:
             self.model = None
         else:
             self.client = None
-            self.model = AutoModelForCausalLM.from_pretrained(model_name).to(device)
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name, device_map=device
+            )
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, padding_side="left")
 
