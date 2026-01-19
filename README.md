@@ -1,121 +1,282 @@
-#### dm-control environments
+# RLFT4RL
 
-```python
-from shimmy.registration import DM_CONTROL_SUITE_ENVS
+**Reinforcement Learning Fine-Tuning for Reinforcement Learning** - A research framework for fine-tuning Large Language Models (LLMs) to act as controllers/policies for RL environments.
 
-[f"dm_control/{'-'.join(item)}-v0" for item in DM_CONTROL_SUITE_ENVS]
-```
->>>
-```
-['dm_control/acrobot-swingup-v0', 'dm_control/acrobot-swingup_sparse-v0', 'dm_control/ball_in_cup-catch-v0', 'dm_control/cartpole-balance-v0', 'dm_control/cartpole-balance_sparse-v0', 'dm_control/cartpole-swingup-v0', 'dm_control/cartpole-swingup_sparse-v0', 'dm_control/cartpole-two_poles-v0', 'dm_control/cartpole-three_poles-v0', 'dm_control/cheetah-run-v0', 'dm_control/dog-stand-v0', 'dm_control/dog-walk-v0', 'dm_control/dog-trot-v0', 'dm_control/dog-run-v0', 'dm_control/dog-fetch-v0', 'dm_control/finger-spin-v0', 'dm_control/finger-turn_easy-v0', 'dm_control/finger-turn_hard-v0', 'dm_control/fish-upright-v0', 'dm_control/fish-swim-v0', 'dm_control/hopper-stand-v0', 'dm_control/hopper-hop-v0', 'dm_control/humanoid-stand-v0', 'dm_control/humanoid-walk-v0', 'dm_control/humanoid-run-v0', 'dm_control/humanoid-run_pure_state-v0', 'dm_control/humanoid_CMU-stand-v0', 'dm_control/humanoid_CMU-walk-v0', 'dm_control/humanoid_CMU-run-v0', 'dm_control/lqr-lqr_2_1-v0', 'dm_control/lqr-lqr_6_2-v0', 'dm_control/manipulator-bring_ball-v0', 'dm_control/manipulator-bring_peg-v0', 'dm_control/manipulator-insert_ball-v0', 'dm_control/manipulator-insert_peg-v0', 'dm_control/pendulum-swingup-v0', 'dm_control/point_mass-easy-v0', 'dm_control/point_mass-hard-v0', 'dm_control/quadruped-walk-v0', 'dm_control/quadruped-run-v0', 'dm_control/quadruped-escape-v0', 'dm_control/quadruped-fetch-v0', 'dm_control/reacher-easy-v0', 'dm_control/reacher-hard-v0', 'dm_control/stacker-stack_2-v0', 'dm_control/stacker-stack_4-v0', 'dm_control/swimmer-swimmer6-v0', 'dm_control/swimmer-swimmer15-v0', 'dm_control/walker-stand-v0', 'dm_control/walker-walk-v0', 'dm_control/walker-run-v0']
-```
+## Overview
 
-#### LLM paths
-
-* llama 3.2 1B (local): models--meta-llama--Llama-3.2-1B/snapshots/5d853ed7d16ac794afa8f5c9c7f59f4e9c950954
-* llama 3.2 3B (local): models--meta-llama--Llama-3.2-3B/snapshots/43fa890183375f5f69cb9646f29aa99ef3207c22
-* llama 3.1 8B (local): models--meta-llama--Llama-3.1-8B/snapshots/8d10549bcf802355f2d6203a33ed27e81b15b9e5
-* llama 3.1 70B (local): models--meta-llama--Llama-3.1-70B/snapshots/349b2ddb53ce8f2849a6c168a81980ab25258dac
-* qwen 2.5 0.5B (local): models--Qwen--Qwen2.5-0.5B/snapshots/060db6499f32faf8b98477b0a26969ef7d8b9987
-* qwen 2.5 0.5B instruct (local): models--Qwen--Qwen2.5-0.5B-Instruct/snapshots/7ae557604adf67be50417f59c2c2f167def9a775
-* qwen 2.5 3B (local): models--Qwen--Qwen2.5-3B/snapshots/3aab1f1954e9cc14eb9509a215f9e5ca08227a9b
-* qwen 2.5 3B instruct (local): models--Qwen--Qwen2.5-3B-Instruct/snapshots/aa8e72537993ba99e69dfaafa59ed015b17504d1
-* SmolLM2-135M (local): models--HuggingFaceTB--SmolLM2-135M-Instruct/snapshots/e2c3f7557efbdec707ae3a336371d169783f1da1
-* SmolLM2-360M (local): models--HuggingFaceTB--SmolLM2-360M-Instruct/snapshots/29ba36fc600930f3cfe6e1a93ab43af299542dc4
-* SmolLM2-1.7B (local): models--HuggingFaceTB--SmolLM2-1.7B-Instruct/snapshots/57aa3c6599c53705406c648e7acca7e11dc45ea3
-* GPT2 (local): models--gpt2/snapshots/607a30d783dfa663caf39e06633721c8d4cfcd7e
-
-*
-
-
-# rlft4rl
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
-```
-cd existing_repo
-git remote add origin https://rnd-gitlab-eu..com/Noahs-Ark/research_projects/rlft4rl.git
-git branch -M main
-git push -uf origin main
-```
-
-## Integrate with your tools
-
-- [ ] [Set up project integrations](https://rnd-gitlab-eu..com/Noahs-Ark/research_projects/rlft4rl/-/settings/integrations)
-
-## Collaborate with your team
-
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+RLFT4RL investigates how LLMs can be adapted to solve reinforcement learning control tasks through post-training techniques like Supervised Fine-Tuning (SFT) and Group Relative Policy Optimization (GRPO). The framework enables training LLMs on offline RL datasets (Minari/D4RL) to generate actions for continuous and discrete control environments.
 
 ## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```bash
+# Clone the repository
+git clone <repository-url>
+cd rlft4rl
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+# Install dependencies
+pip install -e .
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+# Optional: Install flash attention for faster training
+pip install flash-attn==2.7.4.post1
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### Requirements
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+- Python >= 3.9
+- CUDA 12.1+ (for GPU support)
+- Key dependencies: `transformers`, `trl`, `peft`, `torch`, `gymnasium`, `minari`
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+## Project Structure
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+```
+rlft4rl/
+├── src/rlft4rl/
+│   ├── post_training/      # Training scripts (SFT, GRPO)
+│   ├── policies/           # Policy implementations (LLM, MLP)
+│   ├── reward/             # Reward functions and models
+│   ├── data/               # Dataset handling (Minari/D4RL)
+│   ├── prompts.py          # Prompt templates for environments
+│   ├── sampling.py         # Action extraction utilities
+│   └── utils.py            # General utilities
+├── scripts/                # Evaluation scripts
+├── config/                 # Training configuration files (YAML)
+├── notebooks/              # Analysis notebooks
+└── data/                   # Training datasets
+```
+
+## Evaluation Scripts
+
+Located in `scripts/`, these scripts evaluate trained policies in RL environments.
+
+### `eval_llm_policy.py`
+
+Evaluates an LLM-based policy in a gymnasium environment.
+
+```bash
+python scripts/eval_llm_policy.py \
+    --env_id "CartPole-v1" \
+    --model "path/to/trained/model" \
+    --episodes 10 \
+    --temperature 0.3 \
+    --n_examples 3
+```
+
+**Key Arguments:**
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--env_id` | `CartPole-v1` | Gymnasium environment ID |
+| `--model` | `llama-3.3-70b-instruct` | LLM model name or path |
+| `--episodes` | `10` | Number of evaluation episodes |
+| `--temperature` | `0.3` | Sampling temperature |
+| `--prediction_horizon` | `200` | Max tokens for action generation |
+| `--n_examples` | `3` | Few-shot examples in system prompt |
+| `--capture_video` | `False` | Record evaluation videos |
+| `--use_vllm` | `False` | Use vLLM for inference |
+| `--discretized` | `False` | Use discretized action representation |
+| `--api_url` | `http://...` | API endpoint for remote LLM |
+
+**Output:** Episode returns, lengths, and TensorBoard logs in `logs/`.
+
+### `eval_random_policy.py`
+
+Baseline evaluation with random, constant, or MLP policies.
+
+```bash
+# Random policy baseline
+python scripts/eval_random_policy.py --env_id "HalfCheetah-v4" --mode random
+
+# MLP policy (behavior cloning)
+python scripts/eval_random_policy.py --env_id "HalfCheetah-v4" --mode mlp \
+    --mlp_policy_path "models/mlp-policy/halfcheetah_medium/BC_test.pth"
+
+# GRPO-trained MLP policy
+python scripts/eval_random_policy.py --env_id "CartPole-v1" --mode grpo-mlp \
+    --mlp_policy_path "models/grpo-mlp/cartpole/model.pth"
+```
+
+**Modes:**
+- `random`: Random action sampling (baseline)
+- `constant`: Zero/constant actions
+- `mlp`: Trained MLP policy (behavior cloning)
+- `grpo-mlp`: MLP policy trained with GRPO
+
+## Post-Training Scripts
+
+Located in `src/rlft4rl/post_training/`, these scripts fine-tune LLMs for control tasks.
+
+### `sft.py` - Supervised Fine-Tuning
+
+Trains an LLM to imitate expert demonstrations using standard language modeling loss.
+
+```bash
+accelerate launch src/rlft4rl/post_training/sft.py config/sft.yaml
+```
+
+**Configuration (`config/sft.yaml`):**
+```yaml
+# Model
+model_name_or_path: "HuggingFaceTB/SmolLM2-1.7B-Instruct"
+torch_dtype: bfloat16
+attn_implementation: flash_attention_2
+
+# Dataset
+dataset_id_or_path: "data/sft/mujoco_halfcheetah_medium-v0_1000.json"
+eval_dataset_id_or_path: "data/sft/mujoco_halfcheetah_expert-v0_3.json"
+dataset_size: 400000
+
+# LoRA
+use_peft: true
+lora_r: 16
+lora_alpha: 16
+lora_target_modules: ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"]
+lora_modules_to_save: ["lm_head", "embed_tokens"]
+
+# Training
+num_train_epochs: 40
+per_device_train_batch_size: 32
+learning_rate: 1e-3
+```
+
+**Features:**
+- LoRA fine-tuning for parameter efficiency
+- 4-bit quantization support (BitsAndBytes)
+- Early stopping callback
+- Evaluation logging callback
+- Chat format setup for instruction-tuned models
+
+### `grpo.py` - GRPO for Continuous Actions
+
+Trains LLMs using Group Relative Policy Optimization with continuous action spaces (e.g., HalfCheetah).
+
+```bash
+accelerate launch src/rlft4rl/post_training/grpo.py config/grpo.yaml
+```
+
+**Key GRPO Parameters:**
+```yaml
+# GRPO specific
+beta: 0.04                    # KL divergence weight
+num_generations: 4            # Completions per prompt
+max_completion_length: 10     # Max tokens for action
+max_prompt_length: 512
+scale_rewards: false
+```
+
+**Reward Functions:**
+- `format_reward_func`: Validates `<action>...</action>` format
+- `BC_reward_func`: Behavior cloning reward (similarity to expert)
+- `log_rew_func`: Logs completions for analysis
+- `reward_model_func`: Neural network reward model (optional)
+
+### `grpo_d.py` - GRPO for Discrete Actions
+
+Variant for discrete action environments (e.g., CartPole).
+
+```bash
+accelerate launch src/rlft4rl/post_training/grpo_d.py config/grpo.yaml \
+    --dataset_id_or_path "data/sft/custom_cartpole_expert_ppo-v0_112.json"
+```
+
+**Differences from `grpo.py`:**
+- Supports discrete reward functions (`format_reward_func_constructor_discrete`, `BC_reward_func_constructor_discrete`)
+- Tokenized observation scaling for integer token representation
+- Optional non-pretrained model initialization
+
+### `sft_unsloth.py` - SFT with Unsloth Optimization
+
+Optimized SFT using the Unsloth library for faster training.
+
+### `sft_compl-only.py` - Completion-Only SFT
+
+Trains only on the completion (action) portion, not the prompt.
+
+### `merge_adapter_weights.py` - Merge LoRA Adapters
+
+Merges LoRA adapter weights with the base model for inference.
+
+```bash
+python src/rlft4rl/post_training/merge_adapter_weights.py \
+    --peft_model_id "models/grpo-lora8-16-d_qwen3_8b_cartpole" \
+    --output_dir "models/merged-model" \
+    --save_tokenizer True
+```
+
+**Arguments:**
+| Argument | Description |
+|----------|-------------|
+| `--peft_model_id` | Path to LoRA model |
+| `--output_dir` | Output directory for merged model |
+| `--save_tokenizer` | Save tokenizer alongside model |
+| `--push_to_hub` | Upload to HuggingFace Hub |
+
+## Supported Environments
+
+**Continuous Action Spaces:**
+- HalfCheetah (`HalfCheetah-v4`, `dm_control/cheetah-run-v0`)
+- Other MuJoCo environments
+
+**Discrete Action Spaces:**
+- CartPole (`CartPole-v1`)
+- Other Gymnasium classic control environments
+
+## Workflow
+
+```
+┌─────────────────────────────────────────┐
+│ Offline RL Dataset (Minari/D4RL)        │
+│ - Expert/medium demonstrations          │
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────┐
+│ Data Processing (d4rl.py)               │
+│ - Convert to prompt format              │
+│ - <observation>...</observation>        │
+│ - <action>...</action>                  │
+└─────────────────┬───────────────────────┘
+                  │
+        ┌─────────┴─────────┐
+        ▼                   ▼
+┌───────────────┐   ┌───────────────────┐
+│ SFT Training  │   │ GRPO Training     │
+│ (sft.py)      │   │ (grpo.py/grpo_d.py)│
+│               │   │                   │
+│ Imitation     │   │ RL optimization   │
+│ Learning      │   │ with rewards      │
+└───────┬───────┘   └─────────┬─────────┘
+        │                     │
+        └─────────┬───────────┘
+                  ▼
+┌─────────────────────────────────────────┐
+│ Evaluation (eval_llm_policy.py)         │
+│ - Test in environment                   │
+│ - Compute returns                       │
+└─────────────────────────────────────────┘
+```
+
+## Configuration
+
+Training configurations are in `config/`:
+
+- `grpo.yaml` - GRPO training settings
+- `sft.yaml` - SFT training settings
+- `deepspeed_zero3.yaml` - DeepSpeed optimization
+
+## Logging
+
+Training logs are written to:
+- `logs/` - File and console logs
+- TensorBoard logs in the output directory
+
+View TensorBoard:
+```bash
+tensorboard --logdir models/your-model-dir
+```
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+MIT License
+
+## Author
+
+Abdelhakim Benechehab (abdelhakim.benechehab@gmail.com)
